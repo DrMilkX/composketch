@@ -1,0 +1,133 @@
+<html>
+<head>
+  <title>CompoSketch - Human Generator</title>
+  <style>
+    body{
+        background-color: rgb(0, 179, 255);
+    }
+    #layout{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    #preview{
+        background-color: rgb(255, 255, 255);
+        margin: 20px auto;
+        text-align: center;
+    }
+    #thumbs{
+        background-color: rgb(255, 255, 255);
+        border: 1px solid #ddd;
+        height: 100px;
+        width: 600px;
+        overflow-x: scroll;
+        margin-top: 20px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;  
+    }
+    .thumb, .thumb img{
+        width: 140px;
+        height: 100px;
+        border: 4px solid #ddd;
+        cursor: pointer;
+    }
+    .thumb:hover{
+        border-color: #eeff00;
+    }
+  </style>
+</head>
+<body onload="init()">
+  <div class="app">
+    <div class="header">
+      <h1>CompoSketch - Human Generator</h1>
+    </div>
+    <div class="layout">
+      <div class="canvas-wrap">
+        <canvas id="preview" width="600" height="338"></canvas>
+      </div>
+      <div class="thumbnails" id="thumbs">
+       
+      </div>
+    </div>  
+  </div>
+
+  <!-- JAVASCRIPT -->
+  <script>
+    var previewCanvas = document.getElementById('preview');
+    var previewCtx = previewCanvas.getContext('2d');
+
+    var canv_width = previewCanvas.width;
+    var canv_height = previewCanvas.height;
+
+    var cw_third = canv_width / 3;
+    var ch_third = canv_height / 3;
+
+    var cw_half = canv_width / 2;
+    var ch_half = canv_height / 2;
+
+
+
+    // composition data (example)
+    var compositions = {
+        "golden_triangle": [
+            {x1: 0, y1: canv_height, x2: canv_width, y2: 0}, // big diagonal
+            {x1: 0, y1: 0, x2: cw_third, y2: canv_height}, // left third
+            {x1: cw_third*2, y1: 0, x2: canv_width, y2: canv_height} // right third
+        ],
+        "rule_of_thirds": [
+            {x1: cw_third, y1: 0, x2: cw_third, y2: canv_height}, // left third
+            {x1: cw_third*2, y1: 0, x2: cw_third*2, y2: canv_height}, // right third
+            {x1: 0, y1: ch_third, x2: canv_width, y2: ch_third}, // top third
+            {x1: 0, y1: ch_third*2, x2: canv_width, y2: ch_third*2} // bottom third
+        ],
+        "v_arrangement": [
+            {x1: canv_width/5, y1: 0, x2: cw_half, y2: canv_height}, // vertical center
+            {x1: cw_half, y1: canv_height, x2: canv_width*(4/5), y2: 0} // horizontal center
+        ]//,
+        // "spiral_section": [ // fibonacci spiral section
+            
+        // ]
+    }
+
+    // function to draw composition lines
+    function drawComposition(comp) {
+        previewCtx.clearRect(0, 0, canv_width, canv_height);
+        previewCtx.strokeStyle = '#000';
+        previewCtx.lineWidth = 2;
+        comp.forEach(line => {
+            previewCtx.beginPath();
+            previewCtx.moveTo(line.x1, line.y1);
+            previewCtx.lineTo(line.x2, line.y2);
+            previewCtx.stroke();
+        });
+    }
+
+    function init(){
+        // load all compositions and render the first one as default
+        var compKeys = Object.keys(compositions);
+        for (let i = 0; i < compKeys.length; i++) {
+            // render thumbnail on the canvas first
+            drawComposition(compositions[compKeys[i]]);
+
+            // create thumbnail element using the canvas data
+            var thumb = document.createElement('div');
+            thumb.className = 'thumb';
+            var img = new Image();
+            img.src = previewCanvas.toDataURL();
+            thumb.appendChild(img); 
+            thumb.onclick = function() {
+                drawComposition(compositions[compKeys[i]]);
+            };
+            document.getElementById('thumbs').appendChild(thumb);
+        }
+
+    }
+
+
+  </script>
+</body>
+</html>

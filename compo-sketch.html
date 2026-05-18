@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compo-Sketch</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #0C447C;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 0.5px solid rgba(133,183,235,0.25);
+      background: #042C53;
+      flex-shrink: 0;
+    }
+
+    .app-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: #85B7EB;
+      text-transform: uppercase;
+    }
+
+    .export-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: transparent;
+      border: 0.5px solid rgba(133,183,235,0.4);
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: #B5D4F4;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .export-btn:hover { background: rgba(133,183,235,0.1); }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .sidebar {
+      border-right: 0.5px solid rgba(133,183,235,0.2);
+      background: #042C53;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .panel {
+      border-bottom: 0.5px solid rgba(133,183,235,0.2);
+      padding: 14px 16px;
+    }
+
+    .panel-title {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: #378ADD;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slider-label {
+      font-size: 12px;
+      color: #85B7EB;
+      min-width: 48px;
+    }
+
+    input[type=range] {
+      flex: 1;
+      height: 3px;
+      accent-color: #85B7EB;
+      cursor: pointer;
+    }
+
+    .slider-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: #85B7EB;
+      min-width: 24px;
+      text-align: right;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      color: #B5D4F4;
+    }
+
+    .toggle {
+      width: 32px;
+      height: 18px;
+      background: rgba(133,183,235,0.2);
+      border-radius: 9px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .toggle.on { background: #378ADD; }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: left 0.2s;
+    }
+
+    .toggle.on::after { left: 17px; }
+
+    .preview-panel {
+      flex: 1;
+      padding: 14px 16px;
+    }
+
+    .preview-box {
+      background: rgba(133,183,235,0.08);
+      border: 0.5px solid rgba(133,183,235,0.2);
+      border-radius: 8px;
+      height: 130px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-inner {
+      width: 48px;
+      height: 72px;
+      background: rgba(133,183,235,0.15);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .main-area {
+      display: flex;
+      flex-direction: column;
+      background: #0C447C;
+      padding: 16px;
+      gap: 0;
+    }
+
+    .render-window {
+      flex: 1;
+      background: #185FA5;
+      border: 0.5px solid rgba(133,183,235,0.3);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      min-height: 300px;
+    }
+
+    .render-label {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      color: rgba(133,183,235,0.5);
+      font-family: 'DM Mono', monospace;
+      text-transform: uppercase;
+      position: absolute;
+      top: 14px;
+      left: 16px;
+    }
+
+    .render-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .render-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(133,183,235,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .render-hint {
+      font-size: 13px;
+      color: rgba(133,183,235,0.5);
+    }
+
+    .text-input-area {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #185FA5;
+      border: 0.5px solid rgba(133,183,235,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      flex-shrink: 0;
+    }
+
+    .text-input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: #E6F1FB;
+    }
+
+    .text-input-field::placeholder { color: rgba(133,183,235,0.4); }
+
+    .send-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #378ADD;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .send-btn:hover { background: #185FA5; }
+    .send-btn i { font-size: 14px; color: white; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <span class="app-title">Compo-Sketch</span>
+      <button class="export-btn">
+        <i class="ti ti-camera" aria-hidden="true"></i>
+        Export screenshot
+      </button>
+    </div>
+
+    <div class="workspace">
+      <div class="sidebar">
+        <div class="panel">
+          <div class="panel-title">Settings</div>
+          <div class="slider-group">
+            <div class="slider-row">
+              <span class="slider-label">Scale</span>
+              <input type="range" min="0" max="100" value="68" />
+              <span class="slider-val">68</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Offset</span>
+              <input type="range" min="0" max="100" value="34" />
+              <span class="slider-val">34</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Depth</span>
+              <input type="range" min="0" max="100" value="55" />
+              <span class="slider-val">55</span>
+            </div>
+          </div>
+
+          <div class="toggle-row">
+            <span class="toggle-label">Person</span>
+            <div class="toggle on" onclick="this.classList.toggle('on')" role="switch" aria-checked="true" tabindex="0"></div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Overlay composition</span>
+            <div class="toggle" onclick="this.classList.toggle('on')" role="switch" aria-checked="false" tabindex="0"></div>
+          </div>
+        </div>
+
+        <div class="panel preview-panel">
+          <div class="panel-title">Composition preview</div>
+          <div class="preview-box">
+            <div class="preview-inner">
+              <i class="ti ti-user" style="font-size:20px; color: #85B7EB;" aria-hidden="true"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-area">
+        <div class="render-window">
+          <span class="render-label">Render window</span>
+          <div class="render-placeholder">
+            <div class="render-icon">
+              <i class="ti ti-aperture" style="font-size:22px; color: #85B7EB;" aria-hidden="true"></i>
+            </div>
+            <span class="render-hint">Output renders here</span>
+          </div>
+        </div>
+
+        <div class="text-input-area">
+          <i class="ti ti-message" style="font-size:16px; color: #85B7EB;" aria-hidden="true"></i>
+          <input class="text-input-field" type="text" placeholder="Describe a scene or composition…" />
+          <button class="send-btn" aria-label="Send">
+            <i class="ti ti-arrow-up"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('input[type=range]').forEach(slider => {
+      const val = slider.closest('.slider-row').querySelector('.slider-val');
+      slider.addEventListener('input', () => { val.textContent = slider.value; });
+    });
+  </script>
+</body>
+</html>
