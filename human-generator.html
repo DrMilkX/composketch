@@ -287,10 +287,17 @@
 
         let all_lines = [...compLines];
         // add the edges of the canvas as lines too, so anchors near the border can also align to them
-        all_lines.push({x1: 0, y1: 0, x2: canv_width, y2: 0, angle: 90}); // top edge
-        all_lines.push({x1: canv_width, y1: 0, x2: canv_width, y2: canv_height, angle: 0}); // right edge
-        all_lines.push({x1: canv_width, y1: canv_height, x2: 0, y2: canv_height, angle: 180}); // bottom edge
-        all_lines.push({x1: 0, y1: canv_height, x2: 0, y2: 0, angle: 270}); // left edge
+        // all_lines.push({x1: 0, y1: 0, x2: canv_width, y2: 0}); // top edge
+        // all_lines.push({x1: canv_width, y1: 0, x2: canv_width, y2: canv_height}); // right edge
+        // all_lines.push({x1: canv_width, y1: canv_height, x2: 0, y2: canv_height}); // bottom edge
+        // all_lines.push({x1: 0, y1: canv_height, x2: 0, y2: 0}); // left edge
+        
+        all_lines.forEach(line => {
+            if (!line.angle) {
+                line.angle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1);
+            }
+            console.log(`Line from (${line.x1.toFixed(1)}, ${line.y1.toFixed(1)}) to (${line.x2.toFixed(1)}, ${line.y2.toFixed(1)}) with angle ${(line.angle * 180 / Math.PI).toFixed(1)}°`);
+        });
 
         anchors.forEach(anchor => {
 
@@ -309,10 +316,10 @@
 
             if (nearestLine) {
                 let lineLength = maxlen/(nearestDist+1); // length of skeleton line, scaled down from distance to nearest line
-                let avx = nearestLine.angle + randInt(-20, 20) * Math.PI / 180; // random angle variation up to ±30 degrees
-                let avy = nearestLine.angle + randInt(-20, 20) * Math.PI / 180;
-                console.log(`ANGLE: ${nearestLine.angle}, NEAREST DIST: ${nearestDist}`);
-
+                if (Math.random() < 0.5) lineLength *= -1; // flip direction randomly so skeleton lines aren't all pointing the same way
+                
+                let avx = nearestLine.angle + randInt(-10, 10) * Math.PI / 180; // random angle variation up to ±30 degrees
+                let avy = nearestLine.angle + randInt(-10, 10) * Math.PI / 180;
                 // console.log(`Anchor at (${anchor.x.toFixed(1)}, ${anchor.y.toFixed(1)}) is near line with angle ${(nearestLine.angle * 180 / Math.PI).toFixed(1)}° and distance ${nearestDist.toFixed(1)}. Skeleton line angle: ${(avx * 180 / Math.PI).toFixed(1)}°`);
 
                 skeleton.push({
