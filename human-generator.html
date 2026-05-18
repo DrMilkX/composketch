@@ -73,38 +73,259 @@
 
     // composition data (example)
     var compositions = {
-        "golden_triangle": [
-            {x1: 0, y1: canv_height, x2: canv_width, y2: 0}, // big diagonal
-            {x1: 0, y1: 0, x2: cw_third, y2: canv_height}, // left third
-            {x1: cw_third*2, y1: 0, x2: canv_width, y2: canv_height} // right third
-        ],
-        "rule_of_thirds": [
-            {x1: cw_third, y1: 0, x2: cw_third, y2: canv_height}, // left third
-            {x1: cw_third*2, y1: 0, x2: cw_third*2, y2: canv_height}, // right third
-            {x1: 0, y1: ch_third, x2: canv_width, y2: ch_third}, // top third
-            {x1: 0, y1: ch_third*2, x2: canv_width, y2: ch_third*2} // bottom third
-        ],
-        "v_arrangement": [
-            {x1: canv_width/5, y1: 0, x2: cw_half, y2: canv_height}, // vertical center
-            {x1: cw_half, y1: canv_height, x2: canv_width*(4/5), y2: 0} // horizontal center
-        ]//,
-        // "spiral_section": [ // fibonacci spiral section
-            
-        // ]
+        "golden_triangle": {
+            "lines":[
+                {x1: 0, y1: canv_height, x2: canv_width, y2: 0}, // big diagonal
+                {x1: 0, y1: 0, x2: cw_third, y2: canv_height}, // left third
+                {x1: cw_third*2, y1: 0, x2: canv_width, y2: canv_height} // right third
+            ]},
+        "rule_of_thirds": {
+            "lines":[
+                {x1: cw_third, y1: 0, x2: cw_third, y2: canv_height}, // left third
+                {x1: cw_third*2, y1: 0, x2: cw_third*2, y2: canv_height}, // right third
+                {x1: 0, y1: ch_third, x2: canv_width, y2: ch_third}, // top third
+                {x1: 0, y1: ch_third*2, x2: canv_width, y2: ch_third*2} // bottom third
+            ]},
+        "v_arrangement": {
+            "lines":[
+                {x1: canv_width/5, y1: 0, x2: cw_half, y2: canv_height}, // vertical center
+                {x1: cw_half, y1: canv_height, x2: canv_width*(4/5), y2: 0} // horizontal center
+            ]}
     }
 
-    // function to draw composition lines
+    // calculate the angle of each line in the composition
+    for (let comp in compositions) {
+        compositions[comp].lines.forEach(line => {
+            line.angle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1);
+        });
+    }
+
+    function placeAnchors(comp, n=null, m=null) {
+        let lines = comp.lines;
+        const W = canv_width, H = canv_height;
+        if (n === null) n = 3; // default number of main anchors
+        if (m === null) m = 5; // default number of sub anchors
+
+        // ─── Geometry helpers ──────────────────────────────────────────────────────
+
+        function lineIntersection(a, b) {
+            const dx1 = a.x2 - a.x1, dy1 = a.y2 - a.y1;
+            const dx2 = b.x2 - b.x1, dy2 = b.y2 - b.y1;
+            const denom = dx1 * dy2 - dy1 * dx2;
+            if (Math.abs(denom) < 1e-10) return null;
+            const t = ((b.x1 - a.x1) * dy2 - (b.y1 - a.y1) * dx2) / denom;
+            const u = ((b.x1 - a.x1) * dy1 - (b.y1 - a.y1) * dx1) / denom;
+            if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+            return { x: a.x1 + t * dx1, y: a.y1 + t * dy1 };
+        }
+
+        // Closest distance from point (px, py) to a line segment
+        function distToSegment(px, py, seg) {
+            const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+            const lenSq = dx * dx + dy * dy;
+            if (lenSq === 0) return Math.hypot(px - seg.x1, py - seg.y1);
+            const t = Math.max(0, Math.min(1, ((px - seg.x1) * dx + (py - seg.y1) * dy) / lenSq));
+            return Math.hypot(px - (seg.x1 + t * dx), py - (seg.y1 + t * dy));
+        }
+
+        // Minimum distance from point to any line
+        function distToNearestLine(px, py) {
+            return Math.min(...lines.map(l => distToSegment(px, py, l)));
+        }
+
+        // Minimum distance from point to any zone-1 intersection
+        function distToNearestIntersection(px, py, pts) {
+            if (!pts.length) return Infinity;
+            return Math.min(...pts.map(p => Math.hypot(px - p.x, py - p.y)));
+        }
+
+        // Canvas edge intersections: clip each line to find where it meets the border
+        function edgeIntersections(seg) {
+            const edges = [
+            { x1: 0, y1: 0, x2: W, y2: 0 },
+            { x1: W, y1: 0, x2: W, y2: H },
+            { x1: W, y1: H, x2: 0, y2: H },
+            { x1: 0, y1: H, x2: 0, y2: 0 },
+            ];
+            return edges.map(e => lineIntersection(seg, e)).filter(Boolean);
+        }
+
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+        function gaussianOffset(spread) {
+            const u = 1 - Math.random(), v = Math.random();
+            return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * spread;
+        }
+
+        function jitter(pt, spread) {
+            return {
+            x: clamp(pt.x + gaussianOffset(spread), 0, W),
+            y: clamp(pt.y + gaussianOffset(spread), 0, H),
+            };
+        }
+
+        // ─── Build zone point sets ─────────────────────────────────────────────────
+
+        // Zone 1: line-line intersections (interior)
+        const zone1 = [];
+        for (let i = 0; i < lines.length; i++)
+            for (let j = i + 1; j < lines.length; j++) {
+            const pt = lineIntersection(lines[i], lines[j]);
+            if (pt) zone1.push(pt);
+            }
+
+        // Zone 2: line-edge intersections
+        const zone2 = [];
+        for (const seg of lines)
+            for (const pt of edgeIntersections(seg))
+            zone2.push(pt);
+
+        // ─── Weights per zone per anchor type ─────────────────────────────────────
+        //
+        //              Zone 1   Zone 2   Zone 3
+        //  main (n)     HIGH     LOW      LOW
+        //  sub  (m)     LOW      HIGH     LOW
+        //
+        const WEIGHTS = {
+            main: { z1: 70, z2: 15, z3: 15 },
+            sub:  { z1: 15, z2: 70, z3: 15 },
+        };
+
+        const SPREAD_Z1 = 18;   // jitter radius (px) around zone-1 hits
+        const SPREAD_Z2 = 14;   // jitter radius around zone-2 hits
+        // Zone 3 fallback: bias point toward nearest line rather than pure random
+        const LINE_PULL = 0.35; // 0 = pure random, 1 = lands exactly on nearest line
+
+        // ─── Zone 3 sampler ───────────────────────────────────────────────────────
+        // Rejection-samples a point that is "away" from existing intersections,
+        // but still pulled slightly toward the nearest line.
+        function sampleZone3(zone1pts, zone2pts, attempts = 40) {
+            let best = null, bestScore = -Infinity;
+            for (let k = 0; k < attempts; k++) {
+            const rx = Math.random() * W, ry = Math.random() * H;
+            // Score = distance from nearest zone-1 + distance from nearest zone-2
+            // We prefer points far from both hot zones.
+            const d1 = distToNearestIntersection(rx, ry, zone1pts);
+            const d2 = distToNearestIntersection(rx, ry, zone2pts);
+            const score = Math.min(d1, d2);
+            if (score > bestScore) { bestScore = score; best = { x: rx, y: ry }; }
+            }
+            // Pull the winner slightly toward the nearest line
+            const nearestDist = distToNearestLine(best.x, best.y);
+            if (lines.length && nearestDist < Infinity) {
+            // Find which segment is nearest and pull toward it
+            let closestSeg = lines[0], closestD = Infinity;
+            for (const seg of lines) {
+                const d = distToSegment(best.x, best.y, seg);
+                if (d < closestD) { closestD = d; closestSeg = seg; }
+            }
+            // Project onto segment
+            const dx = closestSeg.x2 - closestSeg.x1, dy = closestSeg.y2 - closestSeg.y1;
+            const lenSq = dx * dx + dy * dy;
+            const t = Math.max(0, Math.min(1,
+                ((best.x - closestSeg.x1) * dx + (best.y - closestSeg.y1) * dy) / lenSq));
+            const proj = { x: closestSeg.x1 + t * dx, y: closestSeg.y1 + t * dy };
+            best = {
+                x: best.x + (proj.x - best.x) * LINE_PULL,
+                y: best.y + (proj.y - best.y) * LINE_PULL,
+            };
+            }
+            return best;
+        }
+
+        // ─── Core sampler ─────────────────────────────────────────────────────────
+        function sample(type) {
+            const w = WEIGHTS[type];
+            const total = w.z1 + w.z2 + w.z3;
+            const roll = Math.random() * total;
+
+            if (roll < w.z1 && zone1.length) {
+            // Zone 1: jitter around a random line-line intersection
+            const pt = zone1[Math.floor(Math.random() * zone1.length)];
+            return { ...jitter(pt, SPREAD_Z1), zone: 1 };
+            }
+
+            if (roll < w.z1 + w.z2 && zone2.length) {
+            // Zone 2: jitter around a random edge intersection
+            const pt = zone2[Math.floor(Math.random() * zone2.length)];
+            return { ...jitter(pt, SPREAD_Z2), zone: 2 };
+            }
+
+            // Zone 3: far from intersections, near a line
+            return { ...sampleZone3(zone1, zone2), zone: 3 };
+        }
+
+        // ─── Place anchors ────────────────────────────────────────────────────────
+        const mainAnchors = Array.from({ length: n }, () => ({ ...sample('main'), type: 'main' }));
+        const subAnchors  = Array.from({ length: m }, () => ({ ...sample('sub'),  type: 'sub'  }));
+
+        return { "main":mainAnchors, "sub":subAnchors };
+    }
+
+    function placeSkeleton(anchors, compLines){
+        // connect the dots! and return the skeleton lines
+        let skeleton = [];
+        for (let i = 0; i < anchors.length - 1; i++) {
+            skeleton.push({
+                x1: anchors[i].x,
+                y1: anchors[i].y,
+                x2: anchors[i+1].x,
+                y2: anchors[i+1].y
+            });
+        }
+        return skeleton;
+    }
+
+
+    //// RENDERING LOGIC ////
+
+    // function to draw composition lines on the canvas
     function drawComposition(comp) {
         previewCtx.clearRect(0, 0, canv_width, canv_height);
         previewCtx.strokeStyle = '#000';
         previewCtx.lineWidth = 2;
-        comp.forEach(line => {
+        comp.lines.forEach(line => {
             previewCtx.beginPath();
             previewCtx.moveTo(line.x1, line.y1);
             previewCtx.lineTo(line.x2, line.y2);
             previewCtx.stroke();
         });
     }
+
+    function renderAnchors(anchors) {
+        for (const type in anchors) {
+            anchors[type].forEach(anchor => {
+                previewCtx.fillStyle = type == 'sub' ? '#00ff00' : '#ff0000';
+                previewCtx.beginPath();
+                previewCtx.arc(anchor.x, anchor.y, 5, 0, 2 * Math.PI);
+                previewCtx.fill();
+            });
+        }
+
+    }
+
+    function renderSkeleton(skeleton) {
+        previewCtx.strokeStyle = 'red';
+        previewCtx.lineWidth = 2;
+        skeleton.forEach(line => {
+            previewCtx.beginPath();
+            previewCtx.moveTo(line.x1, line.y1);
+            previewCtx.lineTo(line.x2, line.y2);
+            previewCtx.stroke();
+        });
+    }
+
+    function generate(comp){
+        // draws the composition with the anchor points 
+        let anchors = placeAnchors(comp);
+        // let skeleton = placeSkeleton(anchors);
+        drawComposition(comp);
+        renderAnchors(anchors);
+        // renderSkeleton(skeleton);
+    }
+
+
+    /// INITIALIZATION ///
 
     function init(){
         // load all compositions and render the first one as default
@@ -120,12 +341,12 @@
             img.src = previewCanvas.toDataURL();
             thumb.appendChild(img); 
             thumb.onclick = function() {
-                drawComposition(compositions[compKeys[i]]);
+                generate(compositions[compKeys[i]]);
             };
             document.getElementById('thumbs').appendChild(thumb);
         }
-
     }
+
 
 
   </script>
