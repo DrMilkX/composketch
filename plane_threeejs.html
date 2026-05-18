@@ -197,23 +197,23 @@
         </div>
       </div>
   
-<div class="panel">
+  <div class="panel">
       <div class="panel-title">????</div>
 
       <div class="slider-row">
-        <span class="slider-label">???</span>
-        <input type="range" id="lightDist" min="15" max="100" step="0.5" value="15"/>
-        <span class="val" id="lightDist-val">15</span>
+        <span class="slider-label">Brightness</span>
+        <input type="range" id="lightBrightness" min="0" max="10" step="0.1" value="4"/>
+        <span class="val" id="lightBrightness-val">4</span>
       </div>
       <div class="slider-row">
         <span class="slider-label">???</span>
-        <input type="range" id="lightAngle" min="0" max="360" step="1" value="45"/>
-        <span class="val" id="lightAngle-val">45°</span>
+        <input type="range" id="q1" min="0" max="360" step="1" value="45"/>
+        <span class="val" id="q1-val">45°</span>
       </div>
       <div class="slider-row">
         <span class="slider-label">???</span>
-        <input type="range" id="lightHeight" min="0" max="10" step="0.5" value="5"/>
-        <span class="val" id="lightHeight-val">5</span>
+        <input type="range" id="q2" min="0" max="10" step="0.5" value="5"/>
+        <span class="val" id="q2-val">5</span>
       </div>
     </div>
   </div>
@@ -242,15 +242,16 @@
     const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 500);
 
     // Add lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
     directionalLight.position.set(5, 5, 5);
     scene.add(directionalLight);
 
     // Plane mesh — lies flat in XZ by default (rotated -90° on X)
-    const geometry = new THREE.PlaneGeometry(16, 9);
+    // const geometry = new THREE.PlaneGeometry(16, 9);
+    const geometry = new THREE.BoxGeometry(16, 0.1, 9);
     // const material = new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide });
     
     // 1. Initialize the TextureLoader
@@ -278,6 +279,7 @@
       lightDist: document.getElementById('lightDist'),
       lightAngle: document.getElementById('lightAngle'),
       lightHeight: document.getElementById('lightHeight'),
+      lightBrightness: document.getElementById('lightBrightness'),
     };
 
     function val(id) { return parseFloat(sliders[id].value); }
@@ -292,6 +294,7 @@
       document.getElementById('lightDist-val').textContent = Math.round(val('lightDist') * 10) / 10;
       document.getElementById('lightAngle-val').textContent = Math.round(val('lightAngle')) + '°';
       document.getElementById('lightHeight-val').textContent = Math.round(val('lightHeight') * 10) / 10;
+      document.getElementById('lightBrightness-val').textContent = Math.round(val('lightBrightness') * 10) / 10;
     }
 
     function applyValues() {
@@ -318,12 +321,16 @@
       const lightDist = val('lightDist');
       const lightAngle = val('lightAngle') * DEG;
       const lightHeight = val('lightHeight');
+      const lightBrightness = val('lightBrightness');
 
       directionalLight.position.set(
         lightDist * Math.cos(lightAngle),
         lightHeight,
         lightDist * Math.sin(lightAngle)
       );
+      //console.log(`Light brightness: ${val('lightBrightness')}`);
+
+      directionalLight.intensity = val('lightBrightness') / 10; // scale brightness to a 0-1 range for Three.js
 
       updateLabels();
     }
@@ -333,15 +340,16 @@
 
     // Random button — randomises rotation and camera, keeps height at 0
     document.getElementById('btn-random').addEventListener('click', () => {
-      sliders.planeX.value   = Math.floor(Math.random() * 361) - 180;
-      sliders.planeY.value   = Math.floor(Math.random() * 361) - 180;
+      sliders.planeX.value   = Math.floor(Math.random() * 153) - 7;
+      sliders.planeY.value   = Math.floor(Math.random() * 240) - 120;
       sliders.planeZ.value   = Math.floor(Math.random() * 361) - 180;
       sliders.camPos.value   = Math.floor(Math.random() * 15) + 1;
-      sliders.camAngle.value = Math.floor(Math.random() * 360);
+      sliders.camAngle.value = Math.floor(Math.random() * 180);
       sliders.camHeight.value = 0;
       sliders.lightDist.value = Math.floor(Math.random() * 90) + 10;
       sliders.lightAngle.value = Math.floor(Math.random() * 360);
       sliders.lightHeight.value = Math.floor(Math.random() * 10);
+      sliders.lightBrightness.value = Math.random().toFixed(2);
       applyValues();
     });
 
