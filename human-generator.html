@@ -100,11 +100,24 @@
         });
     }
 
+    function randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    
+    // Closest distance from point (px, py) to a line segment
+    function distToSegment(px, py, seg) {
+        const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.hypot(px - seg.x1, py - seg.y1);
+        const t = Math.max(0, Math.min(1, ((px - seg.x1) * dx + (py - seg.y1) * dy) / lenSq));
+        return Math.hypot(px - (seg.x1 + t * dx), py - (seg.y1 + t * dy));
+    }
+
     function placeAnchors(comp, n=null, m=null) {
         let lines = comp.lines;
         const W = canv_width, H = canv_height;
-        if (n === null) n = 3; // default number of main anchors
-        if (m === null) m = 5; // default number of sub anchors
+        if (n === null) n = randInt(3,5); // default number of main anchors
+        if (m === null) m = randInt(10,20); // default number of sub anchors
 
         // ─── Geometry helpers ──────────────────────────────────────────────────────
 
@@ -119,14 +132,7 @@
             return { x: a.x1 + t * dx1, y: a.y1 + t * dy1 };
         }
 
-        // Closest distance from point (px, py) to a line segment
-        function distToSegment(px, py, seg) {
-            const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
-            const lenSq = dx * dx + dy * dy;
-            if (lenSq === 0) return Math.hypot(px - seg.x1, py - seg.y1);
-            const t = Math.max(0, Math.min(1, ((px - seg.x1) * dx + (py - seg.y1) * dy) / lenSq));
-            return Math.hypot(px - (seg.x1 + t * dx), py - (seg.y1 + t * dy));
-        }
+        
 
         // Minimum distance from point to any line
         function distToNearestLine(px, py) {
@@ -187,11 +193,11 @@
         //  sub  (m)     LOW      HIGH     LOW
         //
         const WEIGHTS = {
-            main: { z1: 70, z2: 15, z3: 15 },
+            main: { z1: 90, z2: 5, z3: 5 },
             sub:  { z1: 15, z2: 70, z3: 15 },
         };
 
-        const SPREAD_Z1 = 18;   // jitter radius (px) around zone-1 hits
+        const SPREAD_Z1 = 10;   // jitter radius (px) around zone-1 hits
         const SPREAD_Z2 = 14;   // jitter radius around zone-2 hits
         // Zone 3 fallback: bias point toward nearest line rather than pure random
         const LINE_PULL = 0.35; // 0 = pure random, 1 = lands exactly on nearest line
@@ -262,17 +268,61 @@
         return { "main":mainAnchors, "sub":subAnchors };
     }
 
-    function placeSkeleton(anchors, compLines){
+    function placeSkeleton(anchor_list, compLines){
         // connect the dots! and return the skeleton lines
+        // let skeleton = [];
+        // for (let i = 0; i < anchors.length - 1; i++) {
+        //     skeleton.push({
+        //         x1: anchors[i].x,
+        //         y1: anchors[i].y,
+        //         x2: anchors[i+1].x,
+        //         y2: anchors[i+1].y
+        //     });
+        // }
+        // return skeleton;
+
+        // draw a line for each anchor and have it follow the angle of the nearest composition line
         let skeleton = [];
-        for (let i = 0; i < anchors.length - 1; i++) {
-            skeleton.push({
-                x1: anchors[i].x,
-                y1: anchors[i].y,
-                x2: anchors[i+1].x,
-                y2: anchors[i+1].y
+        let anchors = [...anchor_list.main, ...anchor_list.sub];
+
+        let all_lines = [...compLines];
+        // add the edges of the canvas as lines too, so anchors near the border can also align to them
+        all_lines.push({x1: 0, y1: 0, x2: canv_width, y2: 0, angle: 90}); // top edge
+        all_lines.push({x1: canv_width, y1: 0, x2: canv_width, y2: canv_height, angle: 0}); // right edge
+        all_lines.push({x1: canv_width, y1: canv_height, x2: 0, y2: canv_height, angle: 180}); // bottom edge
+        all_lines.push({x1: 0, y1: canv_height, x2: 0, y2: 0, angle: 270}); // left edge
+
+        anchors.forEach(anchor => {
+
+            // use the distance function from before to find the nearest line and its angle
+            let nearestLine = null;
+            let nearestDist = Infinity;
+            all_lines.forEach(line => {
+                let d = distToSegment(anchor.x, anchor.y, line);
+                if (d < nearestDist) {
+                    nearestDist = d;
+                    nearestLine = line;
+                }
             });
-        }
+
+            let maxlen = Math.max(canv_height, canv_width); // default length of skeleton line if no composition lines exist
+
+            if (nearestLine) {
+                let lineLength = maxlen/(nearestDist+1); // length of skeleton line, scaled down from distance to nearest line
+                let avx = nearestLine.angle + randInt(-20, 20) * Math.PI / 180; // random angle variation up to ±30 degrees
+                let avy = nearestLine.angle + randInt(-20, 20) * Math.PI / 180;
+                console.log(`ANGLE: ${nearestLine.angle}, NEAREST DIST: ${nearestDist}`);
+
+                // console.log(`Anchor at (${anchor.x.toFixed(1)}, ${anchor.y.toFixed(1)}) is near line with angle ${(nearestLine.angle * 180 / Math.PI).toFixed(1)}° and distance ${nearestDist.toFixed(1)}. Skeleton line angle: ${(avx * 180 / Math.PI).toFixed(1)}°`);
+
+                skeleton.push({
+                    x1: anchor.x,
+                    y1: anchor.y,
+                    x2: anchor.x + lineLength * Math.cos(avx), // add some random angle variation
+                    y2: anchor.y + lineLength * Math.sin(avy)
+                });
+            }
+        });
         return skeleton;
     }
 
@@ -318,10 +368,11 @@
     function generate(comp){
         // draws the composition with the anchor points 
         let anchors = placeAnchors(comp);
-        // let skeleton = placeSkeleton(anchors);
+        let skeleton = placeSkeleton(anchors, comp.lines);
+        // console.log(skeleton);
         drawComposition(comp);
         renderAnchors(anchors);
-        // renderSkeleton(skeleton);
+        renderSkeleton(skeleton);
     }
 
 
