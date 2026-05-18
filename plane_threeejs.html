@@ -20,7 +20,7 @@
     }
 
     #canvas-wrap {
-      width: 840px;
+      width: 720px;
       height: 340px;
       background: #fff;
       border: 2px solid #111;
@@ -35,9 +35,9 @@
 
     .controls-row {
       display: flex;
-      gap: 16px;
+      gap: 8px;
       align-items: flex-start;
-      width: 840px;
+      width: 720px;
       margin: 0 auto;
     }
 
@@ -133,6 +133,7 @@
 
   <div class="controls-row">
 
+    <div class="panel-row">
     <div class="panel">
       <div class="panel-title">Plane</div>
 
@@ -173,29 +174,55 @@
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">Light</div>
+    </div>
+    <div class="panel-row">
+
+      <div class="panel">
+        <div class="panel-title">Light</div>
+
+        <div class="slider-row">
+          <span class="slider-label">Dist</span>
+          <input type="range" id="lightDist" min="15" max="100" step="0.5" value="15"/>
+          <span class="val" id="lightDist-val">15</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Angle</span>
+          <input type="range" id="lightAngle" min="0" max="360" step="1" value="45"/>
+          <span class="val" id="lightAngle-val">45°</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Height</span>
+          <input type="range" id="lightHeight" min="0" max="10" step="0.5" value="5"/>
+          <span class="val" id="lightHeight-val">5</span>
+        </div>
+      </div>
+  
+<div class="panel">
+      <div class="panel-title">????</div>
 
       <div class="slider-row">
-        <span class="slider-label">Dist</span>
+        <span class="slider-label">???</span>
         <input type="range" id="lightDist" min="15" max="100" step="0.5" value="15"/>
         <span class="val" id="lightDist-val">15</span>
       </div>
       <div class="slider-row">
-        <span class="slider-label">Angle</span>
+        <span class="slider-label">???</span>
         <input type="range" id="lightAngle" min="0" max="360" step="1" value="45"/>
         <span class="val" id="lightAngle-val">45°</span>
       </div>
       <div class="slider-row">
-        <span class="slider-label">Height</span>
+        <span class="slider-label">???</span>
         <input type="range" id="lightHeight" min="0" max="10" step="0.5" value="5"/>
         <span class="val" id="lightHeight-val">5</span>
       </div>
     </div>
-
   </div>
 
+  
+  </div>
   <button id="btn-random">Random</button>
+  </div>
+  
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
