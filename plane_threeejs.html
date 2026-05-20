@@ -362,6 +362,22 @@
     }
     animate();
 
+     function calculateBackgroundRatio() {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = renderer.domElement.width;
+        tempCanvas.height = renderer.domElement.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        let data = renderer.domElement.toDataURL("image/png");
+
+        //make a fake image to download
+        let img = document.createElement("img");
+        img.width = tempCanvas.width;
+        img.height = tempCanvas.height;
+        img.src = data;
+        document.body.appendChild(img);
+     }
+
     // Resize
     window.addEventListener('resize', () => {
       const nW = wrap.clientWidth, nH = wrap.clientHeight;

@@ -111,6 +111,7 @@
 
     <div id="canvas-wrap">
       <canvas id="overlay" width="720" height="340"></canvas>
+      <canvas id="three-canvas" width="720" height="340"></canvas>
     </div>
 
     <!-- sliders -->
@@ -204,7 +205,7 @@
     const W = wrap.clientWidth;
     const H = wrap.clientHeight;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({canvas: document.getElementById("three-canvas"), antialias: false, preserveDrawingBuffer: true });
     renderer.setSize(W, H);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setClearColor(0x4A412A);
@@ -603,32 +604,106 @@
       drawComposition(comp);
       renderAnchors(anchors);
       renderSkeleton(skeleton);
+
+      ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+      ctx.fillRect(16, 16, 64,64);
+
     }
 
     function calculateBackgroundRatio() {
-      let canvas = document.getElementById("overlay");
-      const ctx = canvas.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = renderer.domElement.width;
+      tempCanvas.height = renderer.domElement.height;
+      const tempCtx = tempCanvas.getContext('2d');
+
+      let data = renderer.domElement.toDataURL("image/png");
+
+      //make a fake image to download
+      let img = document.createElement("img");
+      img.width = tempCanvas.width;
+      img.height = tempCanvas.height;
+      img.src = data;
+      document.body.appendChild(img);
+
+      console.log(data);
       
-      // #4a412b = rgb(74, 65, 43)
-      0x4A412A
+      
+
+      // get the pixel data from the renderer's canvas
       const bgR = 0x4a, bgG = 0x41, bgB = 0x2a;
       let bgPixels = 0, planePixels = 0;
-      
+
       for (let i = 0; i < data.length; i += 4) {
+        // console.log(`Pixel RGBA: (${data[i]}, ${data[i + 1]}, ${data[i + 2]}, ${data[i + 3]})`);
         if (data[i] === bgR && data[i + 1] === bgG && data[i + 2] === bgB) {
           bgPixels++;
-        } else {
+        } else if (data[i + 3] > 0) {
           planePixels++;
         }
       }
-      
+
       return {
         background: bgPixels,
         plane: planePixels,
         ratio: bgPixels / planePixels
       };
+
+
+      // let rcanv = renderer.getContext().canvas;
+      // let gl = rcanv.getContext('webgl2') || rcanv.getContext('webgl') || rcanv.getContext('experimental-webgl');
+
+      // // 1. Create a buffer to store the pixel data (Width * Height * 4 channels for RGBA)
+      // const pixels = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+
+      // // 2. Read the pixels from the current framebuffer
+      // gl.readPixels(
+      //   0, 0,                                // Starting x, y coordinates
+      //   gl.drawingBufferWidth,               // Width of the area to read
+      //   gl.drawingBufferHeight,              // Height of the area to read
+      //   gl.RGBA,                             // Format
+      //   gl.UNSIGNED_BYTE,                    // Data type
+      //   pixels                               // The destination array
+      // );
+
+      // 3. Create an ImageData object from the pixel data
+      // const rendDat = new ImageData(new Uint8ClampedArray(pixels), gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+      // console.log(rendDat);
+
+      // tempCtx.drawImage(rendDat, 0, 0);
+      // const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      // const data = imageData.data;
+
+      // // add the temp canvas to the body
+      // document.body.appendChild(tempCanvas);
+
+
+      // const tempCanvas = document.createElement('canvas');
+      // tempCanvas.width = renderer.domElement.width;
+      // tempCanvas.height = renderer.domElement.height;
+      // const tempCtx = tempCanvas.getContext('2d');
+
+      // tempCtx.drawImage(renderer.domElement, 0, 0);
+      // const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      // const data = imageData.data;
+
+      // const bgR = 0x4a, bgG = 0x41, bgB = 0x2a;
+      // let bgPixels = 0, planePixels = 0;
+
+      // for (let i = 0; i < data.length; i += 4) {
+      //   // console.log(`Pixel RGBA: (${data[i]}, ${data[i + 1]}, ${data[i + 2]}, ${data[i + 3]})`);
+      //   if (data[i] === bgR && data[i + 1] === bgG && data[i + 2] === bgB) {
+      //     bgPixels++;
+      //   } else if (data[i + 3] > 0) {
+      //     planePixels++;
+      //   }
+      // }
+
+      // return {
+      //   background: bgPixels,
+      //   plane: planePixels,
+      //   ratio: bgPixels / planePixels
+      // };
     }
 
 
