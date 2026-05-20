@@ -308,7 +308,7 @@
     Object.values(sliders).forEach(s => s.addEventListener("input", applyValues));
 
     // Default camera setup
-    function applyPlaneRandom() {
+    async function applyPlaneRandom() {
       sliders.planeX.value = Math.floor(Math.random() * 153) - 7;
       sliders.planeY.value = Math.floor(Math.random() * 240) - 120;
       sliders.planeZ.value = Math.floor(Math.random() * 361) - 180;
@@ -323,6 +323,33 @@
       sliders.lightBrightness.value = Math.random().toFixed(2);
 
       applyValues();
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      for (let i = 0; i < 20; i++) {
+        const result = await calculateBackgroundRatio();
+        if (result.ratio > 0.45) {
+          sliders.camPos.value = Math.max(parseFloat(sliders.camPos.value) - 0.1, 1);
+          console.log("Too much background, zooming in. Ratio:", result.ratio);
+          applyValues();
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } else {
+          console.log("Acceptable background ratio:", result.ratio);
+          break;
+        }
+      }
+
+      for (let i = 0; i < 20; i++) {
+        const result = await calculateBackgroundRatio();
+        if (result.ratio > 0.45) {
+          sliders.planeZ.value = Math.max(parseFloat(sliders.planeZ.value) - 5, 1);
+          console.log("Too much background, zooming in. Ratio:", result.ratio);
+          applyValues();
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } else {
+          console.log("Acceptable background ratio:", result.ratio);
+          break;
+        }
+      }
     }
 
     function animate() {
@@ -604,9 +631,6 @@
       drawComposition(comp);
       renderAnchors(anchors);
       renderSkeleton(skeleton);
-
-      ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
-      ctx.fillRect(16, 16, 64,64);
 
     }
 
