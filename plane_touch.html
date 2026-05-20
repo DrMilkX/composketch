@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Plane Prototype</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #e8e8e8;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 24px 16px 32px;
+      gap: 16px;
+    }
+
+    #canvas-wrap {
+      width: 720px;
+      height: 340px;
+      background: #fff;
+      border: 2px solid #111;
+      margin: 0 auto;
+      position: relative;
+      cursor: crosshair;
+    }
+
+    #canvas-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 2D overlay for the red dot */
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      width: 720px;
+      margin: 0 auto;
+    }
+
+    .panel-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .panel {
+      background: #fff;
+      border: 2px solid #111;
+      padding: 10px 14px 12px;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 10px;
+      letter-spacing: 0.03em;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .slider-row:last-child { margin-bottom: 0; }
+
+    .slider-label {
+      font-size: 12px;
+      width: 54px;
+      flex-shrink: 0;
+      color: #111;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 2px;
+      background: #111;
+      outline: none;
+      cursor: pointer;
+      border-radius: 0;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 16px;
+      background: #111;
+      border-radius: 0;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 10px;
+      height: 16px;
+      background: #111;
+      border: none;
+      border-radius: 0;
+      cursor: pointer;
+    }
+
+    .val {
+      font-size: 11px;
+      width: 38px;
+      text-align: right;
+      color: #444;
+      flex-shrink: 0;
+    }
+
+    #btn-random {
+      background: #00ff44;
+      border: 2px solid #111;
+      color: #111;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      padding: 7px 32px;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+    }
+
+    #btn-random:hover { background: #00e83d; }
+    #btn-random:active { transform: scale(0.97); }
+
+    #click-info {
+      font-size: 11px;
+      color: #555;
+      font-family: 'Courier New', monospace;
+      min-height: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-wrap">
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div id="click-info">Click the canvas to place an anchor</div>
+
+  <div class="controls-row">
+
+    <div class="panel-row">
+      <div class="panel">
+        <div class="panel-title">Plane</div>
+        <div class="slider-row">
+          <span class="slider-label">Roll</span>
+          <input type="range" id="planeX" min="-180" max="180" step="1" value="20"/>
+          <span class="val" id="planeX-val">20°</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Pitch</span>
+          <input type="range" id="planeY" min="-180" max="180" step="1" value="0"/>
+          <span class="val" id="planeY-val">0°</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Yaw</span>
+          <input type="range" id="planeZ" min="-180" max="180" step="1" value="0"/>
+          <span class="val" id="planeZ-val">0°</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Camera</div>
+        <div class="slider-row">
+          <span class="slider-label">Zoom</span>
+          <input type="range" id="camPos" min="1" max="10" step="0.1" value="5"/>
+          <span class="val" id="camPos-val">5</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Angle</span>
+          <input type="range" id="camAngle" min="0" max="360" step="1" value="90"/>
+          <span class="val" id="camAngle-val">90°</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Height</span>
+          <input type="range" id="camHeight" min="-4" max="4" step="0.1" value="1"/>
+          <span class="val" id="camHeight-val">1</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="panel">
+        <div class="panel-title">Light</div>
+        <div class="slider-row">
+          <span class="slider-label">Dist</span>
+          <input type="range" id="lightDist" min="15" max="100" step="0.5" value="15"/>
+          <span class="val" id="lightDist-val">15</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Angle</span>
+          <input type="range" id="lightAngle" min="0" max="360" step="1" value="45"/>
+          <span class="val" id="lightAngle-val">45°</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Height</span>
+          <input type="range" id="lightHeight" min="0" max="10" step="0.5" value="5"/>
+          <span class="val" id="lightHeight-val">5</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Ambient</div>
+        <div class="slider-row">
+          <span class="slider-label">Brightness</span>
+          <input type="range" id="lightBrightness" min="0" max="10" step="0.1" value="4"/>
+          <span class="val" id="lightBrightness-val">4</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Box size</span>
+          <input type="range" id="boxSize" min="0.1" max="4" step="0.1" value="1"/>
+          <span class="val" id="boxSize-val">1.0</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Dot size</span>
+          <input type="range" id="dotSize" min="2" max="20" step="1" value="7"/>
+          <span class="val" id="dotSize-val">7</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <button id="btn-random">Random</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const DEG = Math.PI / 180;
+
+    // ── Scene setup ───────────────────────────────────────────────────────────
+    const wrap = document.getElementById('canvas-wrap');
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xffffff);
+
+    // Insert THREE canvas BEHIND the 2D overlay canvas
+    const overlayCanvas = document.getElementById('overlay');
+    wrap.insertBefore(renderer.domElement, overlayCanvas);
+
+    // Size both canvases to the wrap
+    function syncSize() {
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      renderer.setSize(W, H);
+      overlayCanvas.width  = W * window.devicePixelRatio;
+      overlayCanvas.height = H * window.devicePixelRatio;
+      overlayCanvas.style.width  = W + 'px';
+      overlayCanvas.style.height = H + 'px';
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+    }
+
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 2, 0.1, 500);
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
+
+    // Plane (box)
+    const planeGeo = new THREE.BoxGeometry(16, 0.1, 9);
+
+    // 2. Load the texture file
+    // 1. Initialize the TextureLoader
+    const loader = new THREE.TextureLoader();
+    const texture = loader.load('imgs/grid.jpg'); // replace with your texture file path
+
+    // 3. Create a material and set the 'map' property to your texture
+    const material = new THREE.MeshPhongMaterial({ map: texture });
+    const planeMesh = new THREE.Mesh(planeGeo, material);
+    planeMesh.rotation.x = -90 * DEG;
+    scene.add(planeMesh);
+
+    // Blue box anchor (hidden until first click)
+    const BOX_SIZE = 1;
+    const boxGeo = new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE);
+    const boxMat = new THREE.MeshPhongMaterial({ color: 0x1155ff });
+    const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+    boxMesh.visible = false;
+    scene.add(boxMesh);
+
+    syncSize();
+
+    // ── 2D overlay ────────────────────────────────────────────────────────────
+    const ctx2d = overlayCanvas.getContext('2d');
+    let dotScreen = null; // { x, y } in CSS pixels
+
+    function drawOverlay() {
+      const dpr = window.devicePixelRatio;
+      ctx2d.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      if (!dotScreen) return;
+      const r = parseFloat(sliders.dotSize.value) * dpr;
+      ctx2d.beginPath();
+      ctx2d.arc(dotScreen.x * dpr, dotScreen.y * dpr, r, 0, Math.PI * 2);
+      ctx2d.fillStyle = '#ff2222';
+      ctx2d.fill();
+      ctx2d.strokeStyle = '#fff';
+      ctx2d.lineWidth = 1.5 * dpr;
+      ctx2d.stroke();
+    }
+
+    // ── Raycasting: click → world position on plane ───────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const mouse     = new THREE.Vector2();
+
+    // Local-space hit point — persists across slider changes so box stays glued
+    let localHit = null;
+
+    function updateRayPlane() { /* no-op: we raycast against the mesh directly */ }
+
+    function repositionBox() {
+      if (!localHit || !boxMesh.visible) return;
+      const size = parseFloat(sliders.boxSize.value);
+
+      // Rebuild geometry only when size changes
+      if (!boxMesh._lastSize || boxMesh._lastSize !== size) {
+        if (boxMesh.geometry) boxMesh.geometry.dispose();
+        boxMesh.geometry = new THREE.BoxGeometry(size, size, size);
+        boxMesh._lastSize = size;
+      }
+
+      // Convert stored local-space point back to world space using plane's current transform
+      const worldHit = localHit.clone().applyMatrix4(planeMesh.matrixWorld);
+
+      // World-space "up" normal of the plane (local +Y rotated into world)
+      const worldNormal = new THREE.Vector3(0, 1, 0)
+        .applyQuaternion(planeMesh.quaternion);
+
+      // Offset half the box height along that normal so bottom face is flush
+      boxMesh.position.copy(worldHit).addScaledVector(worldNormal, size / 2);
+
+      // Inherit the plane's rotation
+      boxMesh.quaternion.copy(planeMesh.quaternion);
+    }
+
+    renderer.domElement.addEventListener('click', (e) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const cssX  = e.clientX - rect.left;
+      const cssY  = e.clientY - rect.top;
+
+      mouse.x =  (cssX / rect.width)  * 2 - 1;
+      mouse.y = -(cssY / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      // Raycast against the real mesh surface
+      const hits = raycaster.intersectObject(planeMesh, false);
+      if (!hits.length) return;
+
+      const worldHit = hits[0].point;
+
+      // Store hit in plane-local space so it survives rotation/transform changes
+      const invMatrix = new THREE.Matrix4().copy(planeMesh.matrixWorld).invert();
+      localHit = worldHit.clone().applyMatrix4(invMatrix);
+
+      // ── 2D dot ──
+      dotScreen = { x: cssX, y: cssY };
+      drawOverlay();
+
+      // ── 3D box ──
+      boxMesh.visible = true;
+      repositionBox();
+
+      document.getElementById('click-info').textContent =
+        `Anchor → local x: ${localHit.x.toFixed(2)}, y: ${localHit.y.toFixed(2)}, z: ${localHit.z.toFixed(2)}`;
+    });
+
+    // ── Sliders ───────────────────────────────────────────────────────────────
+    const sliders = {
+      planeX:          document.getElementById('planeX'),
+      planeY:          document.getElementById('planeY'),
+      planeZ:          document.getElementById('planeZ'),
+      camPos:          document.getElementById('camPos'),
+      camAngle:        document.getElementById('camAngle'),
+      camHeight:       document.getElementById('camHeight'),
+      lightDist:       document.getElementById('lightDist'),
+      lightAngle:      document.getElementById('lightAngle'),
+      lightHeight:     document.getElementById('lightHeight'),
+      lightBrightness: document.getElementById('lightBrightness'),
+      boxSize:         document.getElementById('boxSize'),
+      dotSize:         document.getElementById('dotSize'),
+    };
+
+    function val(id) { return parseFloat(sliders[id].value); }
+
+    function updateLabels() {
+      document.getElementById('planeX-val').textContent          = Math.round(val('planeX')) + '°';
+      document.getElementById('planeY-val').textContent          = Math.round(val('planeY')) + '°';
+      document.getElementById('planeZ-val').textContent          = Math.round(val('planeZ')) + '°';
+      document.getElementById('camPos-val').textContent          = val('camPos').toFixed(1);
+      document.getElementById('camAngle-val').textContent        = Math.round(val('camAngle')) + '°';
+      document.getElementById('camHeight-val').textContent       = val('camHeight').toFixed(1);
+      document.getElementById('lightDist-val').textContent       = val('lightDist').toFixed(1);
+      document.getElementById('lightAngle-val').textContent      = Math.round(val('lightAngle')) + '°';
+      document.getElementById('lightHeight-val').textContent     = val('lightHeight').toFixed(1);
+      document.getElementById('lightBrightness-val').textContent = val('lightBrightness').toFixed(1);
+      document.getElementById('boxSize-val').textContent         = val('boxSize').toFixed(1);
+      document.getElementById('dotSize-val').textContent         = Math.round(val('dotSize'));
+    }
+
+    function applyValues() {
+      // Plane rotation
+      planeMesh.rotation.order = 'ZYX';
+      planeMesh.rotation.x = (-90 + val('planeX')) * DEG;
+      planeMesh.rotation.y =  val('planeY') * DEG;
+      planeMesh.rotation.z =  val('planeZ') * DEG;
+
+      // Update the invisible ray-plane to match
+      updateRayPlane();
+
+      // Camera orbit
+      const radius = val('camPos');
+      const angle  = val('camAngle') * DEG;
+      const height = val('camHeight');
+      camera.position.set(
+        radius * Math.cos(angle),
+        height,
+        radius * Math.sin(angle)
+      );
+      camera.lookAt(0, height, 0);
+
+      // Light
+      const lDist   = val('lightDist');
+      const lAngle  = val('lightAngle') * DEG;
+      const lHeight = val('lightHeight');
+      directionalLight.position.set(
+        lDist * Math.cos(lAngle),
+        lHeight,
+        lDist * Math.sin(lAngle)
+      );
+      directionalLight.intensity = val('lightBrightness') / 10;
+
+      // Reposition box to stay glued to plane
+      repositionBox();
+
+      // Redraw dot at same screen position (doesn't move with plane)
+      drawOverlay();
+
+      updateLabels();
+    }
+
+    Object.values(sliders).forEach(s => s.addEventListener('input', applyValues));
+
+    // Random
+    document.getElementById('btn-random').addEventListener('click', () => {
+      sliders.planeX.value          = Math.floor(Math.random() * 153) - 7;
+      sliders.planeY.value          = Math.floor(Math.random() * 240) - 120;
+      sliders.planeZ.value          = Math.floor(Math.random() * 361) - 180;
+      sliders.camPos.value          = (Math.random() * 9 + 1).toFixed(1);
+      sliders.camAngle.value        = Math.floor(Math.random() * 180);
+      sliders.camHeight.value       = 0;
+      sliders.lightDist.value       = Math.floor(Math.random() * 90) + 10;
+      sliders.lightAngle.value      = Math.floor(Math.random() * 360);
+      sliders.lightHeight.value     = Math.floor(Math.random() * 10);
+      sliders.lightBrightness.value = (Math.random() * 10).toFixed(1);
+      // Clear placed anchor on random
+      dotScreen = null;
+      boxMesh.visible = false;
+      document.getElementById('click-info').textContent = 'Click the canvas to place an anchor';
+      applyValues();
+    });
+
+    // ── Render loop ───────────────────────────────────────────────────────────
+    syncSize();
+    applyValues();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => { syncSize(); applyValues(); });
+  </script>
+
+</body>
+</html>

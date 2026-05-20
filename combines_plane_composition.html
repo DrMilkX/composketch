@@ -350,6 +350,8 @@
           break;
         }
       }
+
+      await adjustCameraUntilClear();
     }
 
     function animate() {
@@ -621,6 +623,65 @@
     }
 
     let currentCompKey = "golden_triangle";
+    let boxMeshes = [];
+
+    function isCameraIntersectingPlane() {
+      const camX = camera.position.x;
+      const camY = camera.position.y;
+      const camZ = camera.position.z;
+
+      const planeWidth = 16;
+      const planeDepth = 9;
+      const planeThickness = 0.1;
+
+      return (
+        Math.abs(camX) <= planeWidth / 2 &&
+        Math.abs(camZ) <= planeDepth / 2 &&
+        Math.abs(camY) <= planeThickness / 2
+      );
+    }
+
+    async function adjustCameraUntilClear() {
+      for (let i = 0; i < 100; i++) {
+        if (isCameraIntersectingPlane()) {
+          console.log("Camera inside of plane at zoom:", val("camPos"));
+          break;
+        }
+        sliders.camPos.value = Math.max(parseFloat(sliders.camPos.value) - 0.2, 1);
+        applyValues();
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+    }
+
+    function placeAnchorBoxes(anchors, skeleton) {
+      boxMeshes.forEach(mesh => scene.remove(mesh));
+      boxMeshes = [];
+
+      const boxGeometry = new THREE.BoxGeometry(1, 0.6, 1);
+      const boxMaterial = new THREE.MeshPhongMaterial({ color: 0xff6b6b });
+
+      anchors.main.forEach((anchor, idx) => {
+        const skeletonLine = skeleton[idx];
+        if (!skeletonLine) return;
+
+        // const x3d = (anchor.x / canv_width) * 16 - 8;
+        // const z3d = -((anchor.y / canv_height) * 9 - 4.5);
+        // const y3d = 0.2;
+
+        const x3d = (anchor.x / canv_width);
+        const z3d = -((anchor.y / canv_height) * 9 -  4.5);
+        const y3d = 0.3;
+
+        const box = new THREE.Mesh(boxGeometry, boxMaterial);
+        box.position.set(x3d, y3d, z3d);
+
+        const lineAngle = Math.atan2(skeletonLine.y2 - skeletonLine.y1, skeletonLine.x2 - skeletonLine.x1);
+        box.rotation.y = lineAngle;
+
+        scene.add(box);
+        boxMeshes.push(box);
+      });
+    }
 
     function generateLines() {
       clearOverlay();
@@ -631,7 +692,7 @@
       drawComposition(comp);
       renderAnchors(anchors);
       renderSkeleton(skeleton);
-
+      placeAnchorBoxes(anchors, skeleton);
     }
 
     // call with calculateBackgroundRatio().then(result => console.log(result));
@@ -678,18 +739,18 @@
 
 
     // buttons ======================================================
-    document.getElementById("btn-plane").addEventListener("click", () => {
-      applyPlaneRandom();
+    document.getElementById("btn-plane").addEventListener("click", async () => {
+      await applyPlaneRandom();
     });
 
     document.getElementById("btn-lines").addEventListener("click", () => {
       generateLines();
     });
 
-    document.getElementById("btn-both").addEventListener("click", () => {
+    document.getElementById("btn-both").addEventListener("click", async () => {
       currentCompKey = Object.keys(compositions)[Math.floor(Math.random() * Object.keys(compositions).length)];
       drawComposition(compositions[currentCompKey]);
-      applyPlaneRandom();
+      await applyPlaneRandom();
       generateLines();
     });
 
