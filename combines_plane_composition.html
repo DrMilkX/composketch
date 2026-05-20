@@ -207,7 +207,7 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(W, H);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0xffffff);
+    renderer.setClearColor(0x4A412A);
     wrap.insertBefore(renderer.domElement, document.getElementById("overlay"));
 
     const scene = new THREE.Scene();
@@ -605,6 +605,33 @@
       renderSkeleton(skeleton);
     }
 
+    function calculateBackgroundRatio() {
+      let canvas = document.getElementById("overlay");
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // #4a412b = rgb(74, 65, 43)
+      0x4A412A
+      const bgR = 0x4a, bgG = 0x41, bgB = 0x2a;
+      let bgPixels = 0, planePixels = 0;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] === bgR && data[i + 1] === bgG && data[i + 2] === bgB) {
+          bgPixels++;
+        } else {
+          planePixels++;
+        }
+      }
+      
+      return {
+        background: bgPixels,
+        plane: planePixels,
+        ratio: bgPixels / planePixels
+      };
+    }
+
+
 
     // buttons ======================================================
     document.getElementById("btn-plane").addEventListener("click", () => {
@@ -616,6 +643,8 @@
     });
 
     document.getElementById("btn-both").addEventListener("click", () => {
+      currentCompKey = Object.keys(compositions)[Math.floor(Math.random() * Object.keys(compositions).length)];
+      drawComposition(compositions[currentCompKey]);
       applyPlaneRandom();
       generateLines();
     });
