@@ -641,6 +641,11 @@
       ctx.clearRect(0, 0, canv_width, canv_height);
     }
 
+    function clearBoxes() {
+      boxMeshes.forEach(mesh => scene.remove(mesh));
+      boxMeshes = [];
+    }
+
     let currentCompKey = "golden_triangle";
     let boxMeshes = [];
 
@@ -729,6 +734,7 @@
 
     function generateLines() {
       clearOverlay();
+      clearBoxes();
       const comp = compositions[currentCompKey];
       const anchors = placeAnchors(comp);
       const skeleton = placeSkeleton(anchors, comp.lines);
@@ -819,14 +825,20 @@
 
     // buttons ======================================================
     document.getElementById("btn-plane").addEventListener("click", async () => {
+      clearOverlay();
+      clearBoxes();
       await applyPlaneRandom();
     });
 
     document.getElementById("btn-lines").addEventListener("click", () => {
+      clearOverlay();
+      clearBoxes();
       generateLines();
     });
 
     document.getElementById("btn-both").addEventListener("click", async () => {
+      clearOverlay();
+      clearBoxes();
       currentCompKey = Object.keys(compositions)[Math.floor(Math.random() * Object.keys(compositions).length)];
       drawComposition(compositions[currentCompKey]);
       await applyPlaneRandom();
@@ -835,6 +847,7 @@
 
     document.getElementById("btn-clear").addEventListener("click", () => {
       clearOverlay();
+      clearBoxes();
     });
 
     // composition thumbnails -===============================================
