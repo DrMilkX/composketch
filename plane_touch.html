@@ -366,6 +366,9 @@
       mouse.x =  (cssX / rect.width)  * 2 - 1;
       mouse.y = -(cssY / rect.height) * 2 + 1;
 
+      console.log(`Clicked at CSS pixels x: ${cssX.toFixed(1)}, y: ${cssY.toFixed(1)}`);
+      console.log(`Normalized device coords x: ${mouse.x.toFixed(2)}, y: ${mouse.y.toFixed(2)}`);
+
       raycaster.setFromCamera(mouse, camera);
 
       // Raycast against the real mesh surface

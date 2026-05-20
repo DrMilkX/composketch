@@ -208,8 +208,23 @@
     const renderer = new THREE.WebGLRenderer({canvas: document.getElementById("three-canvas"), antialias: false, preserveDrawingBuffer: true });
     renderer.setSize(W, H);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0x4A412A);
-    wrap.insertBefore(renderer.domElement, document.getElementById("overlay"));
+    renderer.setClearColor(0x4a412a);
+
+    // Insert THREE canvas BEHIND the 2D overlay canvas
+    const overlayCanvas = document.getElementById('overlay');
+    wrap.insertBefore(renderer.domElement, overlayCanvas);
+
+    // Size both canvases to the wrap
+    function syncSize() {
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      renderer.setSize(W, H);
+      overlayCanvas.width  = W * window.devicePixelRatio;
+      overlayCanvas.height = H * window.devicePixelRatio;
+      overlayCanvas.style.width  = W + 'px';
+      overlayCanvas.style.height = H + 'px';
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+    }
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 500);
@@ -233,6 +248,8 @@
     const plane = new THREE.Mesh(geometry, material);
     plane.rotation.x = -90 * DEG;
     scene.add(plane);
+
+    const box_size = 1;
 
     // slider references ==========================================
     const sliders = {
@@ -303,6 +320,8 @@
       directionalLight.intensity = lightBrightness / 10;
 
       updateLabels();
+
+      repositionBoxes();
     }
 
     Object.values(sliders).forEach(s => s.addEventListener("input", applyValues));
@@ -361,8 +380,8 @@
     animate();
 
     // 2D Overlay =====================================
-    const overlayCanvas = document.getElementById("overlay");
     const ctx = overlayCanvas.getContext("2d");
+    let dotScreen = null; // { x, y } in CSS pixels
 
     const canv_width = overlayCanvas.width;
     const canv_height = overlayCanvas.height;
@@ -657,30 +676,55 @@
       boxMeshes.forEach(mesh => scene.remove(mesh));
       boxMeshes = [];
 
+      const rect = renderer.domElement.getBoundingClientRect();
+
       const boxGeometry = new THREE.BoxGeometry(1, 0.6, 1);
       const boxMaterial = new THREE.MeshPhongMaterial({ color: 0xff6b6b });
+
+      const worldNormal = new THREE.Vector3(0, 1, 0)
+        .applyQuaternion(plane.quaternion);
 
       anchors.main.forEach((anchor, idx) => {
         const skeletonLine = skeleton[idx];
         if (!skeletonLine) return;
 
-        // const x3d = (anchor.x / canv_width) * 16 - 8;
-        // const z3d = -((anchor.y / canv_height) * 9 - 4.5);
-        // const y3d = 0.2;
+        // get the coordinates
+        const xn =  (anchor.x / rect.width)  * 2 - 1;
+        const yn = -(anchor.y / rect.height) * 2 + 1;
 
-        const x3d = (anchor.x / canv_width);
-        const z3d = -((anchor.y / canv_height) * 9 -  4.5);
-        const y3d = 0.3;
+        raycaster.setFromCamera({ x: xn, y: yn }, camera);
 
+        // Raycast against the real mesh surface
+        const hits = raycaster.intersectObject(plane, false);
+        if (!hits.length) return;
+
+        const worldHit = hits[0].point;
+
+        // Store hit in plane-local space so it survives rotation/transform changes
+        const invMatrix = new THREE.Matrix4().copy(plane.matrixWorld).invert();
+        localHit = worldHit.clone().applyMatrix4(invMatrix);
+
+        // ── 2D dot ──
+        // dotScreen = { x: anchor.x, y: anchor.y };
+        // drawOverlay();
+
+        // ── 3D box ──
+        // boxMesh.visible = true;
         const box = new THREE.Mesh(boxGeometry, boxMaterial);
-        box.position.set(x3d, y3d, z3d);
+        box.position.copy(worldHit).addScaledVector(worldNormal, box_size / 2);
+        box.quaternion.copy(plane.quaternion);
 
-        const lineAngle = Math.atan2(skeletonLine.y2 - skeletonLine.y1, skeletonLine.x2 - skeletonLine.x1);
-        box.rotation.y = lineAngle;
+        // set local hit for the box
+        box.localHit = localHit.clone();
+
+        // const lineAngle = Math.atan2(skeletonLine.y2 - skeletonLine.y1, skeletonLine.x2 - skeletonLine.x1);
+        // box.rotation.y = lineAngle;
 
         scene.add(box);
         boxMeshes.push(box);
       });
+
+      repositionBoxes();
     }
 
     function generateLines() {
@@ -735,6 +779,41 @@
         };
       });
     }
+
+
+    // BOX PLACEMENT ===============
+
+    // ── Raycasting: click → world position on plane ───────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const mouse     = new THREE.Vector2();
+
+    // Local-space hit point — persists across slider changes so box stays glued
+    let localHit = null;
+
+    function updateRayPlane() { /* no-op: we raycast against the mesh directly */ }
+
+    function repositionBoxes() {
+      for (const boxMesh of boxMeshes) {
+        if (!boxMesh || !boxMesh.visible) return;
+        // const size = parseFloat(sliders.boxSize.value);
+        let localHit = boxMesh.localHit;
+
+        // Convert stored local-space point back to world space using plane's current transform
+        const worldHit = localHit.clone().applyMatrix4(plane.matrixWorld);
+
+        // World-space "up" normal of the plane (local +Y rotated into world)
+        const worldNormal = new THREE.Vector3(0, -1, 0)
+          .applyQuaternion(plane.quaternion);
+
+        // Offset half the box height along that normal so bottom face is flush
+        boxMesh.position.copy(worldHit).addScaledVector(worldNormal, box_size / 2);
+
+        // Inherit the plane's rotation
+        boxMesh.quaternion.copy(plane.quaternion);
+      }
+    }
+
+
 
 
 
