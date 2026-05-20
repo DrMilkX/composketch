@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Plane + Composition Overlay</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #ddd;
+      padding: 20px;
+      text-align: center;
+    }
+
+    #main-layout {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      width: 720px;
+      height: 340px;
+      border: 2px solid black;
+      background: white;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    #controls {
+      margin-top: 15px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #thumbs {
+      margin-top: 15px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .thumb img {
+      width: 120px;
+      height: 70px;
+      border: 2px solid black;
+      cursor: pointer;
+    }
+
+    /* slider panel */
+    #slider-panel {
+      width: 260px;
+      background: white;
+      border: 2px solid black;
+      padding: 10px;
+      text-align: left;
+    }
+
+    .panel-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .slider-label {
+      width: 60px;
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+    }
+
+    .val {
+      width: 50px;
+      font-size: 11px;
+      text-align: right;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Plane + Composition Overlay</h2>
+
+  <div id="main-layout">
+
+    <div id="canvas-wrap">
+      <canvas id="overlay" width="720" height="340"></canvas>
+    </div>
+
+    <!-- sliders -->
+    <div id="slider-panel">
+
+      <div class="panel-title">Plane</div>
+      <div class="slider-row">
+        <span class="slider-label">Roll</span>
+        <input type="range" id="planeX" min="-180" max="180" step="1" value="20"/>
+        <span class="val" id="planeX-val">20°</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Pitch</span>
+        <input type="range" id="planeY" min="-180" max="180" step="1" value="0"/>
+        <span class="val" id="planeY-val">0°</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Yaw</span>
+        <input type="range" id="planeZ" min="-180" max="180" step="1" value="0"/>
+        <span class="val" id="planeZ-val">0°</span>
+      </div>
+
+      <hr>
+
+      <div class="panel-title">Camera</div>
+      <div class="slider-row">
+        <span class="slider-label">Zoom</span>
+        <input type="range" id="camPos" min="1" max="10" step="0.1" value="5"/>
+        <span class="val" id="camPos-val">5</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Angle</span>
+        <input type="range" id="camAngle" min="0" max="360" step="1" value="90"/>
+        <span class="val" id="camAngle-val">90°</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Height</span>
+        <input type="range" id="camHeight" min="-4" max="4" step="0.1" value="1"/>
+        <span class="val" id="camHeight-val">1</span>
+      </div>
+
+      <hr>
+
+      <div class="panel-title">Light</div>
+      <div class="slider-row">
+        <span class="slider-label">Dist</span>
+        <input type="range" id="lightDist" min="15" max="100" step="0.5" value="15"/>
+        <span class="val" id="lightDist-val">15</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Angle</span>
+        <input type="range" id="lightAngle" min="0" max="360" step="1" value="45"/>
+        <span class="val" id="lightAngle-val">45°</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Height</span>
+        <input type="range" id="lightHeight" min="0" max="10" step="0.5" value="5"/>
+        <span class="val" id="lightHeight-val">5</span>
+      </div>
+
+      <hr>
+
+      <div class="panel-title">Light</div>
+      <div class="slider-row">
+        <span class="slider-label">Bright</span>
+        <input type="range" id="lightBrightness" min="0" max="10" step="0.1" value="4"/>
+        <span class="val" id="lightBrightness-val">4</span>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div id="controls">
+    <button id="btn-plane">Generate Plane</button>
+    <button id="btn-lines">Generate Lines</button>
+    <button id="btn-both">Generate Both</button>
+    <button id="btn-clear">Clear Overlay</button>
+  </div>
+
+  <div id="thumbs"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    const DEG = Math.PI / 180;
+
+    // three.js plane setup ==========================================
+
+    const wrap = document.getElementById("canvas-wrap");
+    const W = wrap.clientWidth;
+    const H = wrap.clientHeight;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(W, H);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xffffff);
+    wrap.insertBefore(renderer.domElement, document.getElementById("overlay"));
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 500);
+
+    //lighting stuff
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
+
+    // const geometry = new THREE.PlaneGeometry(16, 9);
+    const geometry = new THREE.BoxGeometry(16, 0.1, 9);
+    // const material = new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide });
+
+    const loader = new THREE.TextureLoader();
+    const texture = loader.load("imgs/grid.jpg"); // make sure this exists!
+    const material = new THREE.MeshPhongMaterial({ map: texture });
+
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -90 * DEG;
+    scene.add(plane);
+
+    // slider references ==========================================
+    const sliders = {
+      planeX: document.getElementById("planeX"),
+      planeY: document.getElementById("planeY"),
+      planeZ: document.getElementById("planeZ"),
+      camPos: document.getElementById("camPos"),
+      camAngle: document.getElementById("camAngle"),
+      camHeight: document.getElementById("camHeight"),
+      lightDist: document.getElementById("lightDist"),
+      lightAngle: document.getElementById("lightAngle"),
+      lightHeight: document.getElementById("lightHeight"),
+      lightBrightness: document.getElementById("lightBrightness"),
+    };
+
+    function val(id) {
+      return parseFloat(sliders[id].value);
+    }
+
+    function updateLabels() {
+      document.getElementById("planeX-val").textContent = Math.round(val("planeX")) + "°";
+      document.getElementById("planeY-val").textContent = Math.round(val("planeY")) + "°";
+      document.getElementById("planeZ-val").textContent = Math.round(val("planeZ")) + "°";
+
+      document.getElementById("camPos-val").textContent = Math.round(val("camPos") * 10) / 10;
+      document.getElementById("camAngle-val").textContent = Math.round(val("camAngle")) + "°";
+      document.getElementById("camHeight-val").textContent = Math.round(val("camHeight") * 10) / 10;
+
+      document.getElementById("lightDist-val").textContent = Math.round(val("lightDist") * 10) / 10;
+      document.getElementById("lightAngle-val").textContent = Math.round(val("lightAngle")) + "°";
+      document.getElementById("lightHeight-val").textContent = Math.round(val("lightHeight") * 10) / 10;
+
+      document.getElementById("lightBrightness-val").textContent = Math.round(val("lightBrightness") * 10) / 10;
+    }
+
+    function applyValues() {
+      // Plane rotation — Euler order ZYX maps naturally to roll/pitch/yaw
+      // Base -90° on X keeps the plane horizontal at 0/0/0
+      plane.rotation.order = "ZYX";
+      plane.rotation.x = (-90 + val("planeX")) * DEG;
+      plane.rotation.y = val("planeY") * DEG;
+      plane.rotation.z = val("planeZ") * DEG;
+
+      // Camera orbit
+      const radius = val("camPos");
+      const angle = val("camAngle") * DEG;
+      const height = val("camHeight");
+
+      camera.position.set(
+        radius * Math.cos(angle),
+        height,
+        radius * Math.sin(angle)
+      );
+      camera.lookAt(0, height, 0);
+
+      // Directional light position
+      const lightDist = val("lightDist");
+      const lightAngle = val("lightAngle") * DEG;
+      const lightHeight = val("lightHeight");
+      const lightBrightness = val("lightBrightness");
+
+      directionalLight.position.set(
+        lightDist * Math.cos(lightAngle),
+        lightHeight,
+        lightDist * Math.sin(lightAngle)
+      );
+
+      directionalLight.intensity = lightBrightness / 10;
+
+      updateLabels();
+    }
+
+    Object.values(sliders).forEach(s => s.addEventListener("input", applyValues));
+
+    // Default camera setup
+    function applyPlaneRandom() {
+      sliders.planeX.value = Math.floor(Math.random() * 153) - 7;
+      sliders.planeY.value = Math.floor(Math.random() * 240) - 120;
+      sliders.planeZ.value = Math.floor(Math.random() * 361) - 180;
+
+      sliders.camPos.value = Math.floor(Math.random() * 15) + 1;
+      sliders.camAngle.value = Math.floor(Math.random() * 180);
+      sliders.camHeight.value = 0;
+
+      sliders.lightDist.value = Math.floor(Math.random() * 90) + 10;
+      sliders.lightAngle.value = Math.floor(Math.random() * 360);
+      sliders.lightHeight.value = Math.floor(Math.random() * 10);
+      sliders.lightBrightness.value = Math.random().toFixed(2);
+
+      applyValues();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // 2D Overlay =====================================
+    const overlayCanvas = document.getElementById("overlay");
+    const ctx = overlayCanvas.getContext("2d");
+
+    const canv_width = overlayCanvas.width;
+    const canv_height = overlayCanvas.height;
+
+    const cw_third = canv_width / 3;
+    const ch_third = canv_height / 3;
+    const cw_half = canv_width / 2;
+
+    let compositions = {
+      "golden_triangle": {
+        "lines":[
+          {x1: 0, y1: canv_height, x2: canv_width, y2: 0},
+          {x1: 0, y1: 0, x2: cw_third, y2: canv_height},
+          {x1: cw_third*2, y1: 0, x2: canv_width, y2: canv_height}
+        ]
+      },
+      "rule_of_thirds": {
+        "lines":[
+          {x1: cw_third, y1: 0, x2: cw_third, y2: canv_height},
+          {x1: cw_third*2, y1: 0, x2: cw_third*2, y2: canv_height},
+          {x1: 0, y1: ch_third, x2: canv_width, y2: ch_third},
+          {x1: 0, y1: ch_third*2, x2: canv_width, y2: ch_third*2}
+        ]
+      },
+      "v_arrangement": {
+        "lines":[
+          {x1: canv_width/5, y1: 0, x2: cw_half, y2: canv_height},
+          {x1: cw_half, y1: canv_height, x2: canv_width*(4/5), y2: 0}
+        ]
+      }
+    };
+
+    // Calculate angles
+    for (let comp in compositions) {
+      compositions[comp].lines.forEach(line => {
+        line.angle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1);
+      });
+    }
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function distToSegment(px, py, seg) {
+      const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) return Math.hypot(px - seg.x1, py - seg.y1);
+      const t = Math.max(0, Math.min(1, ((px - seg.x1) * dx + (py - seg.y1) * dy) / lenSq));
+      return Math.hypot(px - (seg.x1 + t * dx), py - (seg.y1 + t * dy));
+    }
+
+    function placeAnchors(comp, n=null, m=null) {
+      let lines = comp.lines;
+      const W = canv_width, H = canv_height;
+      if (n === null) n = randInt(3,5);
+      if (m === null) m = randInt(10,20);
+
+      function lineIntersection(a, b) {
+        const dx1 = a.x2 - a.x1, dy1 = a.y2 - a.y1;
+        const dx2 = b.x2 - b.x1, dy2 = b.y2 - b.y1;
+        const denom = dx1 * dy2 - dy1 * dx2;
+        if (Math.abs(denom) < 1e-10) return null;
+        const t = ((b.x1 - a.x1) * dy2 - (b.y1 - a.y1) * dx2) / denom;
+        const u = ((b.x1 - a.x1) * dy1 - (b.y1 - a.y1) * dx1) / denom;
+        if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+        return { x: a.x1 + t * dx1, y: a.y1 + t * dy1 };
+      }
+
+      function edgeIntersections(seg) {
+        const edges = [
+          { x1: 0, y1: 0, x2: W, y2: 0 },
+          { x1: W, y1: 0, x2: W, y2: H },
+          { x1: W, y1: H, x2: 0, y2: H },
+          { x1: 0, y1: H, x2: 0, y2: 0 },
+        ];
+        return edges.map(e => lineIntersection(seg, e)).filter(Boolean);
+      }
+
+      function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+      function gaussianOffset(spread) {
+        const u = 1 - Math.random(), v = Math.random();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * spread;
+      }
+
+      function jitter(pt, spread) {
+        return {
+          x: clamp(pt.x + gaussianOffset(spread), 0, W),
+          y: clamp(pt.y + gaussianOffset(spread), 0, H),
+        };
+      }
+
+      const zone1 = [];
+      for (let i = 0; i < lines.length; i++)
+        for (let j = i + 1; j < lines.length; j++) {
+          const pt = lineIntersection(lines[i], lines[j]);
+          if (pt) zone1.push(pt);
+        }
+
+      const zone2 = [];
+      for (const seg of lines)
+        for (const pt of edgeIntersections(seg))
+          zone2.push(pt);
+
+      const WEIGHTS = {
+        main: { z1: 90, z2: 5, z3: 5 },
+        sub:  { z1: 15, z2: 70, z3: 15 },
+      };
+
+      const SPREAD_Z1 = 10;
+      const SPREAD_Z2 = 14;
+      const LINE_PULL = 0.35;
+
+      function distToNearestIntersection(px, py, pts) {
+        if (!pts.length) return Infinity;
+        return Math.min(...pts.map(p => Math.hypot(px - p.x, py - p.y)));
+      }
+
+      function distToNearestLine(px, py) {
+        return Math.min(...lines.map(l => distToSegment(px, py, l)));
+      }
+
+      function sampleZone3(zone1pts, zone2pts, attempts = 40) {
+        let best = null, bestScore = -Infinity;
+        for (let k = 0; k < attempts; k++) {
+          const rx = Math.random() * W, ry = Math.random() * H;
+          const d1 = distToNearestIntersection(rx, ry, zone1pts);
+          const d2 = distToNearestIntersection(rx, ry, zone2pts);
+          const score = Math.min(d1, d2);
+          if (score > bestScore) { bestScore = score; best = { x: rx, y: ry }; }
+        }
+
+        const nearestDist = distToNearestLine(best.x, best.y);
+        if (lines.length && nearestDist < Infinity) {
+          let closestSeg = lines[0], closestD = Infinity;
+          for (const seg of lines) {
+            const d = distToSegment(best.x, best.y, seg);
+            if (d < closestD) { closestD = d; closestSeg = seg; }
+          }
+
+          const dx = closestSeg.x2 - closestSeg.x1, dy = closestSeg.y2 - closestSeg.y1;
+          const lenSq = dx * dx + dy * dy;
+          const t = Math.max(0, Math.min(1,
+            ((best.x - closestSeg.x1) * dx + (best.y - closestSeg.y1) * dy) / lenSq));
+
+          const proj = { x: closestSeg.x1 + t * dx, y: closestSeg.y1 + t * dy };
+
+          best = {
+            x: best.x + (proj.x - best.x) * LINE_PULL,
+            y: best.y + (proj.y - best.y) * LINE_PULL,
+          };
+        }
+        return best;
+      }
+
+      function sample(type) {
+        const w = WEIGHTS[type];
+        const total = w.z1 + w.z2 + w.z3;
+        const roll = Math.random() * total;
+
+        if (roll < w.z1 && zone1.length) {
+          const pt = zone1[Math.floor(Math.random() * zone1.length)];
+          return { ...jitter(pt, SPREAD_Z1), zone: 1 };
+        }
+
+        if (roll < w.z1 + w.z2 && zone2.length) {
+          const pt = zone2[Math.floor(Math.random() * zone2.length)];
+          return { ...jitter(pt, SPREAD_Z2), zone: 2 };
+        }
+
+        return { ...sampleZone3(zone1, zone2), zone: 3 };
+      }
+
+      const mainAnchors = Array.from({ length: n }, () => ({ ...sample("main"), type: "main" }));
+      const subAnchors  = Array.from({ length: m }, () => ({ ...sample("sub"),  type: "sub"  }));
+
+      return { main: mainAnchors, sub: subAnchors };
+    }
+
+    function placeSkeleton(anchor_list, compLines) {
+      let skeleton = [];
+      let anchors = [...anchor_list.main, ...anchor_list.sub];
+      let all_lines = [...compLines];
+
+      all_lines.forEach(line => {
+        if (!line.angle) {
+          line.angle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1);
+        }
+      });
+
+      anchors.forEach(anchor => {
+        let nearestLine = null;
+        let nearestDist = Infinity;
+
+        all_lines.forEach(line => {
+          let d = distToSegment(anchor.x, anchor.y, line);
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearestLine = line;
+          }
+        });
+
+        let maxlen = Math.max(canv_height, canv_width);
+
+        if (nearestLine) {
+          let lineLength = maxlen / (nearestDist + 1);
+          if (Math.random() < 0.5) lineLength *= -1;
+
+          let av = nearestLine.angle + randInt(-10, 10) * DEG;
+
+          skeleton.push({
+            x1: anchor.x,
+            y1: anchor.y,
+            x2: anchor.x + lineLength * Math.cos(av),
+            y2: anchor.y + lineLength * Math.sin(av)
+          });
+        }
+      });
+
+      return skeleton;
+    }
+
+    function drawComposition(comp) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 2;
+      comp.lines.forEach(line => {
+        ctx.beginPath();
+        ctx.moveTo(line.x1, line.y1);
+        ctx.lineTo(line.x2, line.y2);
+        ctx.stroke();
+      });
+    }
+
+    function renderAnchors(anchors) {
+      for (const type in anchors) {
+        anchors[type].forEach(anchor => {
+          ctx.fillStyle = type === "sub" ? "#00ff00" : "#ff0000";
+          ctx.beginPath();
+          ctx.arc(anchor.x, anchor.y, 4, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+    }
+
+    function renderSkeleton(skeleton) {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 2;
+      skeleton.forEach(line => {
+        ctx.beginPath();
+        ctx.moveTo(line.x1, line.y1);
+        ctx.lineTo(line.x2, line.y2);
+        ctx.stroke();
+      });
+    }
+
+    function clearOverlay() {
+      ctx.clearRect(0, 0, canv_width, canv_height);
+    }
+
+    let currentCompKey = "golden_triangle";
+
+    function generateLines() {
+      clearOverlay();
+      const comp = compositions[currentCompKey];
+      const anchors = placeAnchors(comp);
+      const skeleton = placeSkeleton(anchors, comp.lines);
+
+      drawComposition(comp);
+      renderAnchors(anchors);
+      renderSkeleton(skeleton);
+    }
+
+
+    // buttons ======================================================
+    document.getElementById("btn-plane").addEventListener("click", () => {
+      applyPlaneRandom();
+    });
+
+    document.getElementById("btn-lines").addEventListener("click", () => {
+      generateLines();
+    });
+
+    document.getElementById("btn-both").addEventListener("click", () => {
+      applyPlaneRandom();
+      generateLines();
+    });
+
+    document.getElementById("btn-clear").addEventListener("click", () => {
+      clearOverlay();
+    });
+
+    // composition thumbnails -===============================================
+    const thumbs = document.getElementById("thumbs");
+
+    function initThumbs() {
+      const keys = Object.keys(compositions);
+
+      keys.forEach(key => {
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = 240;
+        tempCanvas.height = 140;
+        const tctx = tempCanvas.getContext("2d");
+
+        // draw preview lines
+        tctx.fillStyle = "white";
+        tctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+        tctx.strokeStyle = "black";
+        tctx.lineWidth = 2;
+
+        // scale composition lines from main canvas to thumb canvas
+        const sx = tempCanvas.width / canv_width;
+        const sy = tempCanvas.height / canv_height;
+
+        compositions[key].lines.forEach(line => {
+          tctx.beginPath();
+          tctx.moveTo(line.x1 * sx, line.y1 * sy);
+          tctx.lineTo(line.x2 * sx, line.y2 * sy);
+          tctx.stroke();
+        });
+
+        const div = document.createElement("div");
+        div.className = "thumb";
+
+        const img = new Image();
+        img.src = tempCanvas.toDataURL();
+
+        img.onclick = () => {
+          currentCompKey = key;
+          generateLines();
+        };
+
+        div.appendChild(img);
+        thumbs.appendChild(div);
+      });
+    }
+
+    initThumbs();
+
+    // initialize
+    applyPlaneRandom();
+    applyValues();
+
+    // Resize handling
+    window.addEventListener("resize", () => {
+      const nW = wrap.clientWidth;
+      const nH = wrap.clientHeight;
+
+      renderer.setSize(nW, nH);
+      camera.aspect = nW / nH;
+      camera.updateProjectionMatrix();
+    });
+  </script>
+
+</body>
+</html>
