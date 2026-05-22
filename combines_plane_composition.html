@@ -120,13 +120,13 @@
       <div class="panel-title">Plane</div>
       <div class="slider-row">
         <span class="slider-label">Roll</span>
-        <input type="range" id="planeX" min="-180" max="180" step="1" value="20"/>
-        <span class="val" id="planeX-val">20°</span>
+        <input type="range" id="planeX" min="-180" max="180" step="1" value="107"/>
+        <span class="val" id="planeX-val">107°</span>
       </div>
       <div class="slider-row">
         <span class="slider-label">Pitch</span>
-        <input type="range" id="planeY" min="-180" max="180" step="1" value="0"/>
-        <span class="val" id="planeY-val">0°</span>
+        <input type="range" id="planeY" min="-180" max="180" step="1" value="-58"/>
+        <span class="val" id="planeY-val">-58°</span>
       </div>
       <div class="slider-row">
         <span class="slider-label">Yaw</span>
@@ -139,18 +139,18 @@
       <div class="panel-title">Camera</div>
       <div class="slider-row">
         <span class="slider-label">Zoom</span>
-        <input type="range" id="camPos" min="1" max="10" step="0.1" value="5"/>
-        <span class="val" id="camPos-val">5</span>
+        <input type="range" id="camPos" min="1" max="10" step="0.1" value="6.6"/>
+        <span class="val" id="camPos-val">6.6</span>
       </div>
       <div class="slider-row">
         <span class="slider-label">Angle</span>
-        <input type="range" id="camAngle" min="0" max="360" step="1" value="90"/>
-        <span class="val" id="camAngle-val">90°</span>
+        <input type="range" id="camAngle" min="0" max="360" step="1" value="149"/>
+        <span class="val" id="camAngle-val">149°</span>
       </div>
       <div class="slider-row">
         <span class="slider-label">Height</span>
-        <input type="range" id="camHeight" min="-4" max="4" step="0.1" value="1"/>
-        <span class="val" id="camHeight-val">1</span>
+        <input type="range" id="camHeight" min="-4" max="4" step="0.1" value="-0.1"/>
+        <span class="val" id="camHeight-val">-0.1</span>
       </div>
 
       <hr>
@@ -186,9 +186,9 @@
   </div>
 
   <div id="controls">
-    <button id="btn-plane">Generate Plane</button>
+    <button id="btn-plane" disabled>Generate Plane</button>
     <button id="btn-lines">Generate Lines</button>
-    <button id="btn-both">Generate Both</button>
+    <button id="btn-both" disabled>Generate Both</button>
     <button id="btn-clear">Clear Overlay</button>
   </div>
 
@@ -808,7 +808,7 @@
         const worldHit = localHit.clone().applyMatrix4(plane.matrixWorld);
 
         // World-space "up" normal of the plane (local +Y rotated into world)
-        const worldNormal = new THREE.Vector3(0, -1, 0)
+        const worldNormal = new THREE.Vector3(0, 1, 0)
           .applyQuaternion(plane.quaternion);
 
         // Offset half the box height along that normal so bottom face is flush
@@ -899,7 +899,7 @@
     initThumbs();
 
     // initialize
-    applyPlaneRandom();
+    // applyPlaneRandom();
     applyValues();
 
     // Resize handling
