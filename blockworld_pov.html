@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block World</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0f14;
+    color: #e8e4d9;
+    font-family: 'Courier New', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #header {
+    padding: 12px 20px;
+    border-bottom: 1px solid #2a2d38;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #10121a;
+    flex-shrink: 0;
+  }
+  #header h1 {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #7eb8f7;
+    font-weight: normal;
+  }
+  #header .subtitle {
+    font-size: 11px;
+    color: #4a5068;
+    letter-spacing: 0.05em;
+  }
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #canvas-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  canvas { display: block; }
+  #controls {
+    width: 230px;
+    background: #10121a;
+    border-left: 1px solid #2a2d38;
+    padding: 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  /* ── Accordion ── */
+  .accordion {
+    border: 1px solid #1e2130;
+    border-radius: 5px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .accordion-header {
+    width: 100%;
+    background: #14161f;
+    border: none;
+    color: #8a90a8;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 9px 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.12s, color 0.12s;
+  }
+  .accordion-header:hover { background: #1a1d2c; color: #b0b8d0; }
+  .accordion-header.open  { color: #7eb8f7; background: #141828; }
+  .acc-arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+  .accordion-header.open .acc-arrow { transform: rotate(0deg); }
+  .accordion-header:not(.open) .acc-arrow { transform: rotate(-90deg); }
+  .accordion-body {
+    padding: 0 12px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.22s ease, padding 0.22s ease;
+  }
+  .accordion-body.open {
+    max-height: 600px;
+    padding: 10px 12px 12px;
+  }
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .ctrl-row span.name {
+    font-size: 11px;
+    color: #8a90a8;
+    width: 60px;
+    flex-shrink: 0;
+  }
+  .ctrl-row input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: #2a2d38;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .ctrl-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #7eb8f7;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ctrl-row input[type=range]:hover::-webkit-slider-thumb { background: #aed4ff; }
+  .ctrl-row .val {
+    font-size: 11px;
+    color: #7eb8f7;
+    width: 30px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .divider { border: none; border-top: 1px solid #1e2130; }
+
+  /* Block size checkboxes */
+  .block-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .block-check {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #2a2d38;
+    background: #14161f;
+    transition: border-color 0.12s, background 0.12s;
+    user-select: none;
+  }
+  .block-check:hover { border-color: #3a4060; background: #1a1d2a; }
+  .block-check.active {
+    border-color: #7eb8f7;
+    background: #1a2438;
+  }
+  .block-check input[type=checkbox] { display: none; }
+  .check-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid #3a4060;
+    background: transparent;
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .block-check.active .check-icon {
+    background: #7eb8f7;
+    border-color: #7eb8f7;
+  }
+  .block-check.active .check-icon::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 0px;
+    width: 5px;
+    height: 8px;
+    border: 2px solid #0d0f14;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg) scaleY(0.8);
+  }
+  .block-label {
+    font-size: 10px;
+    color: #8a90a8;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
+  }
+  .block-check.active .block-label { color: #aed4ff; }
+  .block-diagram {
+    display: flex;
+    gap: 1px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+  .bd-col { display: flex; flex-direction: column; gap: 1px; }
+  .bd-cell {
+    width: 5px;
+    height: 5px;
+    background: #3a4060;
+    border-radius: 0.5px;
+  }
+  .block-check.active .bd-cell { background: #7eb8f7; }
+
+  #all-none-row {
+    display: flex;
+    gap: 6px;
+  }
+  .tiny-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid #2a2d38;
+    color: #5a6080;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 4px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .tiny-btn:hover { border-color: #4a5470; color: #8a90a8; }
+
+  input[type=number] {
+    flex: 1;
+    background: #14161f;
+    border: 1px solid #2a2d38;
+    color: #7eb8f7;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 4px 6px;
+    border-radius: 3px;
+    outline: none;
+    width: 0;
+    -moz-appearance: textfield;
+  }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type=number]:focus { border-color: #7eb8f7; }
+
+  #regen-btn {
+    background: transparent;
+    border: 1px solid #3a4060;
+    color: #7eb8f7;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    width: 100%;
+  }
+  #regen-btn:hover { background: #1e2438; border-color: #7eb8f7; color: #aed4ff; }
+  #regen-btn:active { background: #28304a; transform: scale(0.98); }
+
+  #terrain-mode-row {
+    display: flex;
+    gap: 6px;
+  }
+  .terrain-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid #2a2d38;
+    color: #5a6080;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 7px 4px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .terrain-btn:hover { border-color: #4a5470; color: #8a90a8; }
+  .terrain-btn.active { border-color: #7eb8f7; color: #7eb8f7; background: #1a2438; }
+
+  #no-blocks-warn {
+    font-size: 10px;
+    color: #c07040;
+    letter-spacing: 0.06em;
+    display: none;
+    padding: 5px 0;
+  }
+  #stats {
+    font-size: 10px;
+    color: #3a4060;
+    letter-spacing: 0.08em;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid #1e2130;
+    line-height: 1.8;
+  }
+  .palette-preview { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .swatch { width: 14px; height: 14px; border-radius: 2px; }
+  #io-row {
+    display: flex;
+    gap: 6px;
+  }
+  .io-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid #2a3a50;
+    color: #5a9ed4;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    display: block;
+  }
+  .io-btn:hover { background: #142030; border-color: #5a9ed4; color: #88c4ff; }
+  .io-btn:active { background: #1a2c40; transform: scale(0.98); }
+  #import-file { display: none; }
+
+  #import-toast {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    padding: 6px 8px;
+    border-radius: 3px;
+    display: none;
+    text-align: center;
+  }
+  #import-toast.ok  { background: #142a1a; color: #6ed480; border: 1px solid #2a5a30; }
+  #import-toast.err { background: #2a1414; color: #e07070; border: 1px solid #5a2a2a; }
+
+  /* ── First-person mode ── */
+  #fp-btn {
+    background: transparent;
+    border: 1px solid #3a5040;
+    color: #6ed4a0;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    width: 100%;
+  }
+  #fp-btn:hover  { background: #182a20; border-color: #6ed4a0; color: #a0f0c8; }
+  #fp-btn:active { background: #1e3828; transform: scale(0.98); }
+  #fp-btn.active { background: #1a3028; border-color: #6ed4a0; color: #a0f0c8; }
+
+  #fly-btn {
+    background: transparent;
+    border: 1px solid #504038;
+    color: #d4a060;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    width: 100%;
+  }
+  #fly-btn:hover  { background: #2a1e10; border-color: #d4a060; color: #f0c888; }
+  #fly-btn:active { background: #382814; transform: scale(0.98); }
+  #fly-btn.active { background: #302010; border-color: #d4a060; color: #f0c888; }
+
+  /* Fullscreen FP overlay */
+  #fp-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #000;
+  }
+  #fp-overlay.active { display: block; }
+  #fp-canvas-wrap {
+    width: 100%; height: 100%;
+    position: relative;
+  }
+  /* Crosshair */
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    width: 20px; height: 20px;
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,255,255,0.75);
+    border-radius: 1px;
+  }
+  #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+  #crosshair::after  { width: 100%; height: 2px; top: 50%;  transform: translateY(-50%); }
+
+  /* FP HUD bar */
+  #fp-hud {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    pointer-events: none;
+  }
+  #fp-hud-keys {
+    font-size: 10px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.1em;
+    line-height: 1.7;
+  }
+  #fp-hud-btns {
+    display: flex;
+    gap: 8px;
+    pointer-events: all;
+  }
+  .fp-hud-btn {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.8);
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .fp-hud-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.6); }
+
+  /* Pointer-lock click-to-start screen */
+  #fp-click-prompt {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.72);
+    color: #e8e4d9;
+    font-family: 'Courier New', monospace;
+    gap: 12px;
+    cursor: pointer;
+    z-index: 10;
+  }
+  #fp-click-prompt h2 { font-size: 16px; letter-spacing: 0.2em; font-weight: normal; color: #7eb8f7; }
+  #fp-click-prompt p  { font-size: 11px; color: #5a6080; letter-spacing: 0.08em; line-height: 1.8; text-align: center; }
+
+  /* Screenshot flash */
+  #ss-flash {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0s;
+  }
+  #ss-flash.flash { opacity: 0.6; transition: opacity 0.02s; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>Block World</h1>
+  <span class="subtitle">16 × 16 grid — gravity simulation</span>
+</div>
+<div id="main">
+  <div id="canvas-container"></div>
+  <div id="controls">
+
+    <!-- Camera -->
+    <div class="accordion">
+      <button class="accordion-header" data-target="acc-camera">
+        <span>📷 Camera</span><span class="acc-arrow">▾</span>
+      </button>
+      <div class="accordion-body open" id="acc-camera">
+        <div class="ctrl-row">
+          <span class="name">Rotate</span>
+          <input type="range" id="rotY" min="0" max="360" value="30" step="1">
+          <span class="val" id="rotY-val">30°</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Tilt</span>
+          <input type="range" id="rotX" min="10" max="80" value="45" step="1">
+          <span class="val" id="rotX-val">45°</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Zoom</span>
+          <input type="range" id="zoom" min="8" max="32" value="18" step="0.5">
+          <span class="val" id="zoom-val">18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lighting -->
+    <div class="accordion">
+      <button class="accordion-header" data-target="acc-lighting">
+        <span>💡 Lighting</span><span class="acc-arrow">▾</span>
+      </button>
+      <div class="accordion-body open" id="acc-lighting">
+        <div class="ctrl-row">
+          <span class="name">Sun</span>
+          <input type="range" id="sunInt" min="0" max="300" value="130" step="1">
+          <span class="val" id="sunInt-val">1.3</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Ambient</span>
+          <input type="range" id="ambInt" min="0" max="200" value="60" step="1">
+          <span class="val" id="ambInt-val">0.6</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Sun Angle</span>
+          <input type="range" id="sunAngle" min="0" max="360" value="45" step="1">
+          <span class="val" id="sunAngle-val">45°</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generation -->
+    <div class="accordion">
+      <button class="accordion-header" data-target="acc-generation">
+        <span>⚙️ Generation</span><span class="acc-arrow">▾</span>
+      </button>
+      <div class="accordion-body open" id="acc-generation">
+        <div class="ctrl-row">
+          <span class="name">Density</span>
+          <input type="range" id="density" min="10" max="90" value="40" step="1">
+          <span class="val" id="density-val">40%</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Max Stack</span>
+          <input type="range" id="maxStack" min="1" max="10" value="5" step="1">
+          <span class="val" id="maxStack-val">5</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Overhang</span>
+          <input type="range" id="overhangChance" min="0" max="100" value="30" step="1">
+          <span class="val" id="overhangChance-val">30%</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Max Limit</span>
+          <input type="number" id="maxBlocks" min="1" max="9999" value="500" step="1">
+        </div>
+        <div style="height:6px"></div>
+        <div id="terrain-mode-row">
+          <button class="terrain-btn active" id="terrain-random">Random</button>
+          <button class="terrain-btn" id="terrain-perlin">Perlin</button>
+        </div>
+        <div id="perlin-controls" style="display:none; margin-top:10px;">
+          <div class="ctrl-row">
+            <span class="name">Scale</span>
+            <input type="range" id="perlinScale" min="1" max="20" value="6" step="0.5">
+            <span class="val" id="perlinScale-val">6</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="name">Height</span>
+            <input type="range" id="perlinHeight" min="1" max="16" value="7" step="1">
+            <span class="val" id="perlinHeight-val">7</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="name">Roughness</span>
+            <input type="range" id="perlinRoughness" min="1" max="6" value="3" step="1">
+            <span class="val" id="perlinRoughness-val">3</span>
+          </div>
+          <div class="ctrl-row">
+            <span class="name">Flatness</span>
+            <input type="range" id="perlinFlat" min="0" max="100" value="30" step="1">
+            <span class="val" id="perlinFlat-val">30%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block Sizes -->
+    <div class="accordion">
+      <button class="accordion-header" data-target="acc-blocks">
+        <span>🧱 Block Sizes</span><span class="acc-arrow">▾</span>
+      </button>
+      <div class="accordion-body open" id="acc-blocks">
+        <div id="all-none-row">
+          <button class="tiny-btn" id="select-all-btn">All</button>
+          <button class="tiny-btn" id="select-none-btn">None</button>
+        </div>
+        <div style="height:6px"></div>
+        <div class="block-grid" id="block-size-grid"></div>
+        <div id="no-blocks-warn">Select at least one size</div>
+      </div>
+    </div>
+
+    <!-- Player -->
+    <div class="accordion">
+      <button class="accordion-header" data-target="acc-player">
+        <span>🧍 Player</span><span class="acc-arrow">▾</span>
+      </button>
+      <div class="accordion-body open" id="acc-player">
+        <div class="ctrl-row">
+          <span class="name">Walk Spd</span>
+          <input type="range" id="walkSpeed" min="1" max="20" value="5" step="0.5">
+          <span class="val" id="walkSpeed-val">5</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Fly Speed</span>
+          <input type="range" id="flySpeed" min="1" max="40" value="8" step="0.5">
+          <span class="val" id="flySpeed-val">8</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Sprint ×</span>
+          <input type="range" id="sprintMult" min="1" max="5" value="2" step="0.1">
+          <span class="val" id="sprintMult-val">2.0×</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Jump</span>
+          <input type="range" id="jumpPower" min="2" max="20" value="7" step="0.5">
+          <span class="val" id="jumpPower-val">7</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Gravity</span>
+          <input type="range" id="gravityStr" min="2" max="40" value="18" step="0.5">
+          <span class="val" id="gravityStr-val">18</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Height</span>
+          <input type="range" id="playerHeight" min="0.5" max="3" value="1.7" step="0.1">
+          <span class="val" id="playerHeight-val">1.7</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">FOV</span>
+          <input type="range" id="playerFOV" min="50" max="120" value="75" step="1">
+          <span class="val" id="playerFOV-val">75°</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="name">Sensitivity</span>
+          <input type="range" id="mouseSens" min="1" max="20" value="9" step="1">
+          <span class="val" id="mouseSens-val">9</span>
+        </div>
+      </div>
+    </div>
+
+    <button id="regen-btn">↺ Regenerate</button>
+    <button id="fp-btn">⬛ Explore First Person</button>
+    <button id="fly-btn">🪂 Fly Mode</button>
+
+    <div id="io-row">
+      <button class="io-btn" id="export-btn">↓ Export JSON</button>
+      <label class="io-btn" id="import-label">↑ Import JSON
+        <input type="file" id="import-file" accept=".json">
+      </label>
+    </div>
+
+    <div id="import-toast"></div>
+
+    <div id="stats">
+      <div>Meshes: <span id="stat-blocks">—</span></div>
+      <div>Placements: <span id="stat-cols">—</span></div>
+      <div class="palette-preview" id="palette-swatches"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- First-person overlay -->
+<div id="fp-overlay">
+  <div id="fp-canvas-wrap">
+    <div id="fp-click-prompt">
+      <h2 id="fp-prompt-title">FIRST PERSON MODE</h2>
+      <p id="fp-prompt-text">Click to capture mouse &amp; begin exploring<br>
+         WASD / Arrow Keys — Move &nbsp;|&nbsp; Space — Jump<br>
+         Mouse — Look &nbsp;|&nbsp; Shift — Sprint</p>
+    </div>
+    <div id="crosshair"></div>
+    <div id="ss-flash"></div>
+    <div id="fp-hud">
+      <div id="fp-hud-keys">
+        WASD · move &nbsp;|&nbsp; <span id="hud-extra-hint">SPACE · jump &nbsp;|&nbsp; SHIFT · sprint</span> &nbsp;|&nbsp; ESC · exit
+      </div>
+      <div id="fp-hud-btns">
+        <button class="fp-hud-btn" id="fly-toggle-btn">🪂 Fly Mode</button>
+        <button class="fp-hud-btn" id="ss-btn">📷 Screenshot</button>
+        <button class="fp-hud-btn" id="fp-exit-btn">✕ Exit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Block type definitions ─────────────────────────────────────────────
+// Each size: { id, label, w (X cells), h (Y cells), d (Z cells) }
+// Convention: w = X footprint, d = Z footprint, h = height in cells
+const BLOCK_TYPES = [
+  { id: '1x1',  label: '1 × 1',  w: 1, h: 1, d: 1 },
+  { id: '2x1',  label: '2 × 1',  w: 2, h: 1, d: 1 },
+  { id: '1x2',  label: '1 × 2',  w: 1, h: 1, d: 2 },
+  { id: '2x3',  label: '2 × 3',  w: 2, h: 1, d: 3 },
+  { id: '3x1',  label: '3 × 1',  w: 3, h: 1, d: 1 },
+  { id: '4x1',  label: '4 × 1',  w: 4, h: 1, d: 1 },
+  { id: '2x6',  label: '2 × 6',  w: 2, h: 1, d: 6 },
+  { id: '2x4',  label: '2 × 4',  w: 2, h: 1, d: 4 },
+  { id: '2x8',  label: '2 × 8',  w: 2, h: 1, d: 8 },
+];
+
+// Enabled set - all on by default
+const enabledTypes = new Set(BLOCK_TYPES.map(b => b.id));
+
+// Build diagram for a block type (tiny pixel preview)
+function makeDiagram(bt) {
+  const wrap = document.createElement('div');
+  wrap.className = 'block-diagram';
+  const cols = bt.w;
+  const rows = bt.d;
+  for (let c = 0; c < cols; c++) {
+    const col = document.createElement('div');
+    col.className = 'bd-col';
+    for (let r = 0; r < rows; r++) {
+      const cell = document.createElement('div');
+      cell.className = 'bd-cell';
+      col.appendChild(cell);
+    }
+    wrap.appendChild(col);
+  }
+  return wrap;
+}
+
+function buildBlockSizeUI() {
+  const grid = document.getElementById('block-size-grid');
+  grid.innerHTML = '';
+  BLOCK_TYPES.forEach(bt => {
+    const item = document.createElement('label');
+    item.className = 'block-check active';
+    item.dataset.id = bt.id;
+
+    const inp = document.createElement('input');
+    inp.type = 'checkbox';
+    inp.checked = true;
+    inp.dataset.id = bt.id;
+
+    const icon = document.createElement('div');
+    icon.className = 'check-icon';
+
+    const info = document.createElement('div');
+    info.style.display = 'flex';
+    info.style.flexDirection = 'column';
+    info.style.gap = '3px';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'block-label';
+    lbl.textContent = bt.label;
+
+    const diag = makeDiagram(bt);
+
+    info.appendChild(lbl);
+    info.appendChild(diag);
+    item.appendChild(inp);
+    item.appendChild(icon);
+    item.appendChild(info);
+    grid.appendChild(item);
+
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = item.dataset.id;
+      const isActive = enabledTypes.has(id);
+      if (isActive) {
+        enabledTypes.delete(id);
+        item.classList.remove('active');
+        inp.checked = false;
+      } else {
+        enabledTypes.add(id);
+        item.classList.add('active');
+        inp.checked = true;
+      }
+      const warn = document.getElementById('no-blocks-warn');
+      warn.style.display = enabledTypes.size === 0 ? 'block' : 'none';
+    });
+  });
+
+  document.getElementById('select-all-btn').addEventListener('click', () => {
+    BLOCK_TYPES.forEach(bt => enabledTypes.add(bt.id));
+    document.querySelectorAll('.block-check').forEach(el => {
+      el.classList.add('active');
+      el.querySelector('input').checked = true;
+    });
+    document.getElementById('no-blocks-warn').style.display = 'none';
+  });
+
+  document.getElementById('select-none-btn').addEventListener('click', () => {
+    enabledTypes.clear();
+    document.querySelectorAll('.block-check').forEach(el => {
+      el.classList.remove('active');
+      el.querySelector('input').checked = false;
+    });
+    document.getElementById('no-blocks-warn').style.display = 'block';
+  });
+}
+
+// ── Three.js setup ─────────────────────────────────────────────────────
+const container = document.getElementById('canvas-container');
+let W = container.clientWidth, H = container.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0d0f14);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+function updateCamera() {
+  const z = parseFloat(document.getElementById('zoom').value);
+  const asp = W / H;
+  camera.left   = -z * asp / 2;
+  camera.right  =  z * asp / 2;
+  camera.top    =  z / 2;
+  camera.bottom = -z / 2;
+  camera.updateProjectionMatrix();
+}
+camera.position.set(30, 30, 30);
+camera.lookAt(0, 0, 0);
+updateCamera();
+
+const ambLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambLight);
+
+const sunLight = new THREE.DirectionalLight(0xfff5e0, 1.3);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far  = 200;
+sunLight.shadow.camera.left = sunLight.shadow.camera.bottom = -22;
+sunLight.shadow.camera.right = sunLight.shadow.camera.top  =  22;
+scene.add(sunLight);
+
+function setSunPosition(angleDeg) {
+  const a = (angleDeg * Math.PI) / 180;
+  sunLight.position.set(Math.cos(a) * 40, 30, Math.sin(a) * 40);
+}
+setSunPosition(45);
+
+const GRID = 16;
+const UNIT = 1;
+const GAP  = 0.05;
+
+const PALETTES = [
+  [0xe8725a, 0xd4573f, 0xf0896e, 0xc44830, 0xff9e88],
+  [0x5a9ee8, 0x3f7ed4, 0x6eb4f0, 0x3068c4, 0x88c4ff],
+  [0x72d45a, 0x57bf3f, 0x86e86e, 0x42a830, 0x9ef888],
+  [0xe8c45a, 0xd4a83f, 0xf0d86e, 0xc49230, 0xffe88a],
+  [0xa05ae8, 0x8a3fd4, 0xb86ef0, 0x7030c4, 0xc888ff],
+  [0xe8a05a, 0xd4853f, 0xf0b86e, 0xc47030, 0xffca88],
+];
+
+let currentPalette = PALETTES[0];
+let blockGroup = null;
+let gridLines  = null;
+let gridMesh   = null;
+let blockData  = [];
+let terrainMode = 'random'; // 'random' | 'perlin'
+
+// ── Perlin Noise (classic 2D, Ken Perlin's improved permutation) ────────
+const _perm = (() => {
+  const p = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,
+    103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,
+    94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,
+    171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,
+    60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,
+    216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,
+    164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,
+    255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,
+    119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,
+    19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,
+    193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,
+    214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,
+    236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+  const perm = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+  return perm;
+})();
+
+function _fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function _lerp(a, b, t) { return a + t * (b - a); }
+function _grad(hash, x, y) {
+  const h = hash & 3;
+  const u = h < 2 ? x : y;
+  const v = h < 2 ? y : x;
+  return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+}
+function perlin2(x, y) {
+  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+  x -= Math.floor(x); y -= Math.floor(y);
+  const u = _fade(x), v = _fade(y);
+  const a = _perm[X] + Y, b = _perm[X + 1] + Y;
+  return _lerp(
+    _lerp(_grad(_perm[a],   x,   y), _grad(_perm[b],   x-1, y),   u),
+    _lerp(_grad(_perm[a+1], x,   y-1), _grad(_perm[b+1], x-1, y-1), u),
+    v
+  );
+}
+
+// Fractional Brownian Motion — sum of Perlin octaves
+function fbm(x, y, octaves, lacunarity = 2.0, gain = 0.5) {
+  let val = 0, amp = 0.5, freq = 1, max = 0;
+  for (let i = 0; i < octaves; i++) {
+    val += perlin2(x * freq, y * freq) * amp;
+    max += amp;
+    amp  *= gain;
+    freq *= lacunarity;
+  }
+  return val / max; // normalised -1..1
+}
+
+function buildGrid() {
+  if (gridMesh)  { scene.remove(gridMesh);  gridMesh.geometry.dispose();  gridMesh.material.dispose(); }
+  if (gridLines) { scene.remove(gridLines); gridLines.geometry.dispose(); gridLines.material.dispose(); }
+
+  const geo = new THREE.PlaneGeometry(GRID + 0.5, GRID + 0.5);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x1a1e2a, roughness: 0.9, metalness: 0.1 });
+  gridMesh = new THREE.Mesh(geo, mat);
+  gridMesh.rotation.x = -Math.PI / 2;
+  gridMesh.position.y = -0.5;
+  gridMesh.receiveShadow = true;
+  scene.add(gridMesh);
+
+  const pts  = [];
+  const half = GRID / 2;
+  for (let i = 0; i <= GRID; i++) {
+    pts.push(-half + i, -0.49, -half,  -half + i, -0.49,  half);
+    pts.push(-half,     -0.49, -half + i,  half,  -0.49, -half + i);
+  }
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  gridLines = new THREE.LineSegments(lineGeo,
+    new THREE.LineBasicMaterial({ color: 0x2a3050, transparent: true, opacity: 0.5 }));
+  scene.add(gridLines);
+}
+
+// ── Generation with multi-cell block placement ─────────────────────────
+function generateBlocks() {
+  if (enabledTypes.size === 0) return;
+
+  if (blockGroup) {
+    blockGroup.traverse(obj => {
+      if (obj.isMesh) { obj.geometry.dispose(); obj.material.dispose(); }
+    });
+    scene.remove(blockGroup);
+  }
+  blockGroup = new THREE.Group();
+  blockData  = [];
+
+  const density  = parseFloat(document.getElementById('density').value) / 100;
+  const maxStack = parseInt(document.getElementById('maxStack').value);
+  const half     = GRID / 2;   // world-space offset so grid is centred at origin
+
+  const paletteIdx = Math.floor(Math.random() * PALETTES.length);
+  currentPalette   = PALETTES[paletteIdx];
+  updateSwatches();
+
+  // height map: heightMap[x][z] = current top Y (in cell units, 0-based)
+  const heightMap = Array.from({ length: GRID }, () => new Array(GRID).fill(0));
+
+  let totalMeshes = 0;
+  let placements  = 0;
+
+  const overhangChance = parseFloat(document.getElementById('overhangChance').value) / 100;
+  const maxBlocks = parseInt(document.getElementById('maxBlocks').value) || 500;
+  const OVERHANG_BORDER = 4; // max cells outside grid
+
+
+  // ── Terrain pre-pass ──────────────────────────────────────────────────
+  if (terrainMode === 'perlin') {
+    const scale     = parseFloat(document.getElementById('perlinScale').value);
+    const maxH      = parseInt(document.getElementById('perlinHeight').value);
+    const octaves   = parseInt(document.getElementById('perlinRoughness').value);
+    const flatness  = parseFloat(document.getElementById('perlinFlat').value) / 100;
+
+    // Random offset so each generation looks different
+    const ox = Math.random() * 999;
+    const oz = Math.random() * 999;
+
+    // Terrain colour palette: earthy greens/browns layered by height
+    const TERRAIN_PALETTES = [
+      // low → high: water-ish blue-grey, dirt, grass, rock, snow
+      [0x4a7a8a, 0x8a7055, 0x5a8a40, 0x7a7a7a, 0xd8d8d8],
+      // autumn
+      [0x8a6040, 0xa07840, 0xc89040, 0x908060, 0xd0c8a0],
+      // volcanic
+      [0x3a2020, 0x6a3020, 0x8a5030, 0x6a6a6a, 0xa0a0a0],
+      // alien
+      [0x304060, 0x406840, 0x608858, 0x709070, 0xb0d0c0],
+    ];
+    currentPalette = TERRAIN_PALETTES[Math.floor(Math.random() * TERRAIN_PALETTES.length)];
+    updateSwatches();
+
+    const geoCache2 = {};
+    function getGeo2(w, h, d) {
+      const key = `${w}_${h}_${d}`;
+      if (!geoCache2[key]) geoCache2[key] = new THREE.BoxGeometry(w*UNIT-GAP, h*UNIT-GAP, d*UNIT-GAP);
+      return geoCache2[key];
+    }
+
+    for (let gx = 0; gx < GRID; gx++) {
+      for (let gz = 0; gz < GRID; gz++) {
+        const nx = (gx / GRID) * scale + ox;
+        const nz = (gz / GRID) * scale + oz;
+        let n = fbm(nx, nz, octaves); // -1..1
+        n = (n + 1) / 2;              //  0..1
+
+        // Flatness: squash towards a central plateau
+        n = n * (1 - flatness) + 0.5 * flatness;
+        n = Math.max(0, Math.min(1, n));
+
+        const colH = Math.max(1, Math.round(n * maxH));
+
+        // Stack colH blocks of size 1×1×1, coloring by layer
+        for (let y = 0; y < colH && totalMeshes < maxBlocks; y++) {
+          // Height-based colour: lerp through terrain palette
+          const t  = y / Math.max(1, maxH - 1);
+          const pi = t * (currentPalette.length - 1);
+          const lo = Math.floor(pi), hi = Math.min(lo + 1, currentPalette.length - 1);
+          const tf = pi - lo;
+          const ca = currentPalette[lo], cb = currentPalette[hi];
+          const r  = (((ca>>16)&0xff) * (1-tf) + ((cb>>16)&0xff) * tf) / 255;
+          const g  = (((ca>> 8)&0xff) * (1-tf) + ((cb>> 8)&0xff) * tf) / 255;
+          const b  = (((ca    )&0xff) * (1-tf) + ((cb    )&0xff) * tf) / 255;
+          const shade = 0.88 + Math.random() * 0.18;
+          const color = new THREE.Color(r*shade, g*shade, b*shade);
+
+          const geo  = getGeo2(1, 1, 1);
+          const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+            color,
+            roughness: 0.65 + Math.random() * 0.25,
+            metalness: 0.02,
+          }));
+          const wx = -half + gx + 0.5;
+          const wy = y * UNIT - 0.5 + 0.5;
+          const wz = -half + gz + 0.5;
+          mesh.position.set(wx, wy, wz);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          blockGroup.add(mesh);
+          totalMeshes++;
+          blockData.push({
+            size: { w:1, h:1, d:1 }, sizeId: '1x1',
+            gridOrigin: { x: gx, y, z: gz },
+            worldPosition: { x: +wx.toFixed(4), y: +wy.toFixed(4), z: +wz.toFixed(4) },
+            color: '#' + color.getHexString(),
+          });
+        }
+        heightMap[gx][gz] = colH;
+      }
+    }
+    placements = totalMeshes;
+    // Skip normal random placement in perlin mode
+    scene.add(blockGroup);
+    document.getElementById('stat-blocks').textContent = totalMeshes;
+    document.getElementById('stat-cols').textContent   = placements;
+    return;
+  }
+  // ── End terrain pre-pass ──────────────────────────────────────────────
+
+  // Geometry cache keyed by "w_h_d"
+  const geoCache = {};
+  function getGeo(w, h, d) {
+    const key = `${w}_${h}_${d}`;
+    if (!geoCache[key]) {
+      geoCache[key] = new THREE.BoxGeometry(
+        w * UNIT - GAP,
+        h * UNIT - GAP,
+        d * UNIT - GAP
+      );
+    }
+    return geoCache[key];
+  }
+
+  // Get available types as array
+  const available = BLOCK_TYPES.filter(bt => enabledTypes.has(bt.id));
+
+
+  // Helper: update height map only for in-bounds cells
+  function raiseCells(cx, cz, bw, bd, newH) {
+    for (let dx = 0; dx < bw; dx++)
+      for (let dz = 0; dz < bd; dz++) {
+        const nx = cx + dx, nz = cz + dz;
+        if (nx >= 0 && nx < GRID && nz >= 0 && nz < GRID)
+          heightMap[nx][nz] = newH;
+      }
+  }
+
+  // Helper: count how many cells of a block footprint are outside the grid
+  function overhangCells(cx, cz, bw, bd) {
+    let count = 0;
+    for (let dx = 0; dx < bw; dx++)
+      for (let dz = 0; dz < bd; dz++) {
+        const nx = cx + dx, nz = cz + dz;
+        if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) count++;
+      }
+    return count;
+  }
+
+  // Iterate over grid + OVERHANG_BORDER-cell border
+  const cells = [];
+  for (let gx = -OVERHANG_BORDER; gx < GRID + OVERHANG_BORDER; gx++)
+    for (let gz = -OVERHANG_BORDER; gz < GRID + OVERHANG_BORDER; gz++)
+      cells.push([gx, gz]);
+  cells.sort(() => Math.random() - 0.5);
+
+  for (const [gx, gz] of cells) {
+    if (totalMeshes >= maxBlocks) break;
+    if (Math.random() > density) continue;
+    const stackHeight = 1 + Math.floor(Math.random() * maxStack);
+    let layersPlaced = 0;
+
+    while (layersPlaced < stackHeight && totalMeshes < maxBlocks) {
+      const shuffled = [...available].sort(() => Math.random() - 0.5);
+      let placed = false;
+
+      for (const bt of shuffled) {
+        // Gather heights of all in-bounds cells under this block's footprint
+        const supportHeights = [];
+        for (let dx = 0; dx < bt.w; dx++)
+          for (let dz = 0; dz < bt.d; dz++) {
+            const cx = gx + dx, cz = gz + dz;
+            if (cx >= 0 && cx < GRID && cz >= 0 && cz < GRID)
+              supportHeights.push(heightMap[cx][cz]);
+          }
+
+        // Must touch at least one in-bounds cell (no fully-floating blocks)
+        if (supportHeights.length === 0) continue;
+
+        // Block rests on the highest supporting cell
+        const layerY = Math.max(...supportHeights);
+
+        // Count out-of-bounds cells — reject if any part exceeds the overhang border
+        const oob = overhangCells(gx, gz, bt.w, bt.d);
+        if (oob > 0) {
+          // Check every out-of-bounds cell is within OVERHANG_BORDER of the grid edge
+          let tooFar = false;
+          for (let dx = 0; dx < bt.w && !tooFar; dx++)
+            for (let dz = 0; dz < bt.d && !tooFar; dz++) {
+              const nx = gx + dx, nz = gz + dz;
+              if (nx < -OVERHANG_BORDER || nx >= GRID + OVERHANG_BORDER ||
+                  nz < -OVERHANG_BORDER || nz >= GRID + OVERHANG_BORDER) tooFar = true;
+            }
+          if (tooFar) continue;
+          // 30% chance gate for any overhanging block
+          if (Math.random() > overhangChance) continue;
+        }
+
+        // For in-bounds origin cells, only stack from that column's own top
+        if (gx >= 0 && gx < GRID && gz >= 0 && gz < GRID) {
+          if (heightMap[gx][gz] !== layerY) continue;
+        } else {
+          // Border-origin: only place if at least one in-bounds cell is already raised
+          if (!supportHeights.some(h => h === layerY && layerY > 0)) continue;
+        }
+
+        const color = pickedColor();
+        const geo  = getGeo(bt.w, bt.h, bt.d);
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+          color: color,
+          roughness: 0.55 + Math.random() * 0.35,
+          metalness: 0.05 + Math.random() * 0.1,
+        }));
+
+        const wx = -half + gx + bt.w / 2;
+        const wy = layerY * UNIT + bt.h / 2 - 0.5;
+        const wz = -half + gz + bt.d / 2;
+        mesh.position.set(wx, wy, wz);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        blockGroup.add(mesh);
+        totalMeshes++;
+
+        // Record for export
+        blockData.push({
+          size: { w: bt.w, h: bt.h, d: bt.d },
+          sizeId: bt.id,
+          gridOrigin: { x: gx, y: layerY, z: gz },
+          worldPosition: { x: +wx.toFixed(4), y: +wy.toFixed(4), z: +wz.toFixed(4) },
+          color: '#' + color.getHexString(),
+        });
+
+        raiseCells(gx, gz, bt.w, bt.d, layerY + bt.h);
+
+        layersPlaced++;
+        placements++;
+        placed = true;
+        break;
+      }
+
+      if (!placed) break;
+    }
+  }
+
+  // Dispose cached geos
+  Object.values(geoCache).forEach(g => { /* keep for reuse, disposed next regen via traverse */ });
+
+  scene.add(blockGroup);
+  document.getElementById('stat-blocks').textContent = totalMeshes;
+  document.getElementById('stat-cols').textContent   = placements;
+}
+
+function pickedColor() {
+  const baseColor = currentPalette[Math.floor(Math.random() * currentPalette.length)];
+  const shade = 0.82 + Math.random() * 0.32;
+  const r = ((baseColor >> 16) & 0xff) / 255 * shade;
+  const g = ((baseColor >>  8) & 0xff) / 255 * shade;
+  const b = ( baseColor        & 0xff) / 255 * shade;
+  return new THREE.Color(r, g, b);
+}
+
+function updateSwatches() {
+  const c = document.getElementById('palette-swatches');
+  c.innerHTML = '';
+  currentPalette.forEach(col => {
+    const s = document.createElement('div');
+    s.className = 'swatch';
+    s.style.background = '#' + col.toString(16).padStart(6, '0');
+    c.appendChild(s);
+  });
+}
+
+// ── Export / Import ────────────────────────────────────────────────────
+function exportJSON() {
+  if (blockData.length === 0) return;
+  const payload = {
+    meta: {
+      version: 1,
+      grid: GRID,
+      blockUnit: UNIT,
+      exported: new Date().toISOString(),
+      totalBlocks: blockData.length,
+    },
+    blocks: blockData,
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `blockworld_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('import-toast');
+  t.textContent = msg;
+  t.className = type;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+function loadBlockData(blocks) {
+  if (blockGroup) {
+    blockGroup.traverse(obj => {
+      if (obj.isMesh) { obj.geometry.dispose(); obj.material.dispose(); }
+    });
+    scene.remove(blockGroup);
+  }
+  blockGroup = new THREE.Group();
+  blockData  = [];
+
+  const geoCache = {};
+  function getGeo(w, h, d) {
+    const key = `${w}_${h}_${d}`;
+    if (!geoCache[key])
+      geoCache[key] = new THREE.BoxGeometry(w * UNIT - GAP, h * UNIT - GAP, d * UNIT - GAP);
+    return geoCache[key];
+  }
+
+  for (const b of blocks) {
+    const { w, h, d } = b.size;
+    const color = new THREE.Color(b.color);
+    const mesh  = new THREE.Mesh(getGeo(w, h, d), new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.6,
+      metalness: 0.07,
+    }));
+    mesh.position.set(b.worldPosition.x, b.worldPosition.y, b.worldPosition.z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    blockGroup.add(mesh);
+    blockData.push(b);
+  }
+
+  scene.add(blockGroup);
+  document.getElementById('stat-blocks').textContent = blocks.length;
+  document.getElementById('stat-cols').textContent   = '—';
+}
+
+function importJSON(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const payload = JSON.parse(e.target.result);
+      if (!payload.blocks || !Array.isArray(payload.blocks))
+        throw new Error('Missing blocks array');
+      // Validate a sample entry
+      const sample = payload.blocks[0];
+      if (!sample?.size || !sample?.worldPosition || !sample?.color)
+        throw new Error('Invalid block format');
+      loadBlockData(payload.blocks);
+      showToast(`✓ Loaded ${payload.blocks.length} blocks`, 'ok');
+    } catch (err) {
+      showToast(`✗ ${err.message}`, 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+function updateCameraPosition() {
+  const ry   = parseFloat(document.getElementById('rotY').value) * Math.PI / 180;
+  const rx   = parseFloat(document.getElementById('rotX').value) * Math.PI / 180;
+  const z    = parseFloat(document.getElementById('zoom').value);
+  const dist = z * 2.2;
+  camera.position.set(
+    Math.sin(ry) * Math.cos(rx) * dist,
+    Math.sin(rx) * dist,
+    Math.cos(ry) * Math.cos(rx) * dist
+  );
+  camera.lookAt(0, 2, 0);
+  updateCamera();
+}
+
+// ── Controls ───────────────────────────────────────────────────────────
+function setupControls() {
+  const bind = (id, suffix, scale, cb) => {
+    const el  = document.getElementById(id);
+    const val = document.getElementById(id + '-val');
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      val.textContent = scale
+        ? (v / scale).toFixed(1) + (suffix || '')
+        : v + (suffix || '');
+      cb(v);
+    });
+  };
+  bind('rotY',     '°',  null, () => updateCameraPosition());
+  bind('rotX',     '°',  null, () => updateCameraPosition());
+  bind('zoom',     '',   null, () => updateCameraPosition());
+  bind('sunInt',   '',   100,  v  => { sunLight.intensity = v / 100; });
+  bind('ambInt',   '',   100,  v  => { ambLight.intensity = v / 100; });
+  bind('sunAngle', '°',  null, v  => setSunPosition(v));
+  bind('density',  '%',  null, () => {});
+  bind('maxStack', '',   null, () => {});
+  bind('overhangChance', '%', null, () => {});
+
+  // Perlin sliders (no suffix for scale/height/roughness, % for flat)
+  const bindSimple = (id, suffix) => {
+    const el  = document.getElementById(id);
+    const val = document.getElementById(id + '-val');
+    if (!el) return;
+    el.addEventListener('input', () => {
+      val.textContent = parseFloat(el.value) + (suffix || '');
+    });
+  };
+  bindSimple('perlinScale', '');
+  bindSimple('perlinHeight', '');
+  bindSimple('perlinRoughness', '');
+  bindSimple('perlinFlat', '%');
+
+  // Accordion toggles
+  document.querySelectorAll('.accordion-header').forEach(btn => {
+    // Mark all as open initially
+    btn.classList.add('open');
+    btn.addEventListener('click', () => {
+      const body = document.getElementById(btn.dataset.target);
+      const isOpen = body.classList.contains('open');
+      body.classList.toggle('open', !isOpen);
+      btn.classList.toggle('open', !isOpen);
+    });
+  });
+
+  // Player sliders
+  const bindPlayer = (id, suffix, cb) => {
+    const el  = document.getElementById(id);
+    const val = document.getElementById(id + '-val');
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      val.textContent = v + (suffix || '');
+      cb(v);
+    });
+  };
+  bindPlayer('walkSpeed',    '',   v => { WALK_SPEED   = v; });
+  bindPlayer('flySpeed',     '',   v => { FLY_SPEED_MUT = v; });
+  bindPlayer('sprintMult',   '×',  v => { SPRINT_MULT  = v; FLY_SPRINT_MUT = v; });
+  bindPlayer('jumpPower',    '',   v => { JUMP_VEL_MUT = v; });
+  bindPlayer('gravityStr',   '',   v => { GRAVITY_MUT  = -v; });
+  bindPlayer('playerHeight', '',   v => { PLAYER_HEIGHT_MUT = v; });
+  bindPlayer('playerFOV',    '°',  v => { fpCamera.fov = v; fpCamera.updateProjectionMatrix(); });
+  bindPlayer('mouseSens',    '',   v => { MOUSE_SENS = v * 0.0002; });
+  document.getElementById('terrain-random').addEventListener('click', () => {
+    terrainMode = 'random';
+    document.getElementById('terrain-random').classList.add('active');
+    document.getElementById('terrain-perlin').classList.remove('active');
+    document.getElementById('perlin-controls').style.display = 'none';
+  });
+  document.getElementById('terrain-perlin').addEventListener('click', () => {
+    terrainMode = 'perlin';
+    document.getElementById('terrain-perlin').classList.add('active');
+    document.getElementById('terrain-random').classList.remove('active');
+    document.getElementById('perlin-controls').style.display = 'block';
+  });
+  document.getElementById('regen-btn').addEventListener('click', generateBlocks);
+  document.getElementById('export-btn').addEventListener('click', exportJSON);
+  document.getElementById('import-file').addEventListener('change', e => {
+    importJSON(e.target.files[0]);
+    e.target.value = ''; // reset so same file can be re-imported
+  });
+}
+
+window.addEventListener('resize', () => {
+  W = container.clientWidth;
+  H = container.clientHeight;
+  renderer.setSize(W, H);
+  updateCamera();
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+
+// ── First-Person Mode ──────────────────────────────────────────────────
+const fpOverlay   = document.getElementById('fp-overlay');
+const fpWrap      = document.getElementById('fp-canvas-wrap');
+const fpPrompt    = document.getElementById('fp-click-prompt');
+const ssFlash     = document.getElementById('ss-flash');
+
+// FP perspective camera
+const fpCamera = new THREE.PerspectiveCamera(75, 1, 0.05, 300);
+fpCamera.position.set(0, 1.7, 0);
+
+// FP renderer reuses the same scene but renders into the overlay at full window size
+const fpRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+fpRenderer.shadowMap.enabled = true;
+fpRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+fpRenderer.setClearColor(0x0d0f14);
+fpWrap.insertBefore(fpRenderer.domElement, fpWrap.firstChild);
+
+function resizeFP() {
+  fpRenderer.setSize(window.innerWidth, window.innerHeight);
+  fpRenderer.setPixelRatio(window.devicePixelRatio);
+  fpCamera.aspect = window.innerWidth / window.innerHeight;
+  fpCamera.updateProjectionMatrix();
+}
+resizeFP();
+window.addEventListener('resize', resizeFP);
+
+// Player state
+const fp = {
+  active:   false,
+  locked:   false,
+  flyMode:  false,
+  yaw:      0,
+  pitch:    0,
+  velY:     0,
+  onGround: false,
+  pos:      new THREE.Vector3(0, 1.7, 6),
+  sprint:   false,
+};
+
+let PLAYER_HEIGHT_MUT = 1.7;
+let PLAYER_RADIUS     = 0.3;
+let GRAVITY_MUT       = -18;
+let JUMP_VEL_MUT      =  7;
+let WALK_SPEED        =  5;
+let SPRINT_MULT       =  2.0;
+let FLY_SPEED_MUT     =  8;
+let FLY_SPRINT_MUT    =  2.0;
+let MOUSE_SENS        =  0.0018;
+const PLAYER_HEIGHT   =  1.7; // keep as alias — tick uses PLAYER_HEIGHT_MUT
+
+// Keys held
+const keys = {};
+let lastSpaceTap = 0;
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (fp.active) {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      const now = performance.now();
+      if (now - lastSpaceTap < 300) {
+        // Double-tap: toggle fly mode
+        toggleFlyMode(!fp.flyMode);
+      } else {
+        if (!fp.flyMode) tryJump();
+      }
+      lastSpaceTap = now;
+    }
+    if (e.code === 'Escape') exitFP();
+    if (e.code === 'KeyP')  takeScreenshot();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// Pointer lock
+fpWrap.addEventListener('click', () => {
+  if (!fp.locked) fpWrap.requestPointerLock();
+});
+document.addEventListener('pointerlockchange', () => {
+  fp.locked = document.pointerLockElement === fpWrap;
+  fpPrompt.style.display = fp.locked ? 'none' : 'flex';
+});
+document.addEventListener('mousemove', e => {
+  if (!fp.locked) return;
+  fp.yaw   -= e.movementX * MOUSE_SENS;
+  fp.pitch -= e.movementY * MOUSE_SENS;
+  fp.pitch  = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, fp.pitch));
+});
+
+// Build a flat collision structure from blockData for fast AABB queries
+// Each entry: { minX, maxX, minY, maxY, minZ, maxZ }
+let fpBoxes = [];
+function rebuildFPBoxes() {
+  fpBoxes = [];
+  if (!blockData.length) return;
+  for (const b of blockData) {
+    const hw = b.size.w * UNIT / 2;
+    const hh = b.size.h * UNIT / 2;
+    const hd = b.size.d * UNIT / 2;
+    fpBoxes.push({
+      minX: b.worldPosition.x - hw,
+      maxX: b.worldPosition.x + hw,
+      minY: b.worldPosition.y - hh,
+      maxY: b.worldPosition.y + hh,
+      minZ: b.worldPosition.z - hd,
+      maxZ: b.worldPosition.z + hd,
+    });
+  }
+  // Ground plane as a big flat box
+  fpBoxes.push({ minX: -100, maxX: 100, minY: -1.0, maxY: -0.01, minZ: -100, maxZ: 100 });
+}
+
+function getFloorY(px, pz) {
+  const feetY = fp.pos.y - PLAYER_HEIGHT_MUT;
+  let best = -1.0;
+  for (const b of fpBoxes) {
+    if (px + PLAYER_RADIUS > b.minX && px - PLAYER_RADIUS < b.maxX &&
+        pz + PLAYER_RADIUS > b.minZ && pz - PLAYER_RADIUS < b.maxZ) {
+      if (b.maxY <= feetY + 0.15) best = Math.max(best, b.maxY);
+    }
+  }
+  return best;
+}
+
+function collidesHorizontal(nx, nz) {
+  const feet = fp.pos.y - PLAYER_HEIGHT_MUT + 0.05;
+  const head = fp.pos.y + 0.1;
+  for (const b of fpBoxes) {
+    if (b.minY >= head || b.maxY <= feet) continue;
+    if (nx + PLAYER_RADIUS > b.minX && nx - PLAYER_RADIUS < b.maxX &&
+        nz + PLAYER_RADIUS > b.minZ && nz - PLAYER_RADIUS < b.maxZ) return true;
+  }
+  return false;
+}
+
+function tryJump() {
+  if (fp.onGround) { fp.velY = JUMP_VEL_MUT; fp.onGround = false; }
+}
+
+const FLY_VERTICAL = 6;
+
+// FP update tick
+let fpLastTime = 0;
+function fpTick(now) {
+  if (!fp.active) return;
+  requestAnimationFrame(fpTick);
+  const dt = Math.min((now - fpLastTime) / 1000, 0.05);
+  fpLastTime = now;
+
+  const fwd   = (keys['KeyW'] || keys['ArrowUp'])    ? 1 : 0;
+  const back  = (keys['KeyS'] || keys['ArrowDown'])  ? 1 : 0;
+  const left  = (keys['KeyA'] || keys['ArrowLeft'])  ? 1 : 0;
+  const right = (keys['KeyD'] || keys['ArrowRight']) ? 1 : 0;
+  const sprinting = keys['ShiftLeft'] || keys['ShiftRight'];
+  const fb = fwd - back;
+  const lr = right - left;
+
+  if (fp.flyMode) {
+    const speed = FLY_SPEED_MUT * (sprinting ? FLY_SPRINT_MUT : 1);
+    const cosP = Math.cos(fp.pitch), sinP = Math.sin(fp.pitch);
+    const strafeX =  Math.cos(fp.yaw) * lr;
+    const strafeZ = -Math.sin(fp.yaw) * lr;
+    const fwdX = -Math.sin(fp.yaw) * cosP * fb;
+    const fwdY =  sinP * fb;
+    const fwdZ = -Math.cos(fp.yaw) * cosP * fb;
+    const upDown = (keys['Space'] ? 1 : 0) - (keys['ControlLeft'] || keys['ControlRight'] ? 1 : 0);
+
+    fp.pos.x += (fwdX + strafeX) * speed * dt;
+    fp.pos.y  = Math.max(PLAYER_HEIGHT_MUT, fp.pos.y + (fwdY * speed + upDown * FLY_VERTICAL) * dt);
+    fp.pos.z += (fwdZ + strafeZ) * speed * dt;
+    fp.velY   = 0;
+    fp.onGround = false;
+
+  } else {
+    const speed = WALK_SPEED * (sprinting ? SPRINT_MULT : 1);
+    const moveX = -Math.sin(fp.yaw) * fb + Math.cos(fp.yaw) * lr;
+    const moveZ = -Math.cos(fp.yaw) * fb - Math.sin(fp.yaw) * lr;
+    const len   = Math.sqrt(moveX * moveX + moveZ * moveZ);
+    let dx = 0, dz = 0;
+    if (len > 0) { dx = (moveX / len) * speed * dt; dz = (moveZ / len) * speed * dt; }
+
+    const nx = fp.pos.x + dx;
+    const nz = fp.pos.z + dz;
+    if (!collidesHorizontal(nx, fp.pos.z)) fp.pos.x = nx;
+    if (!collidesHorizontal(fp.pos.x, nz)) fp.pos.z = nz;
+
+    fp.velY += GRAVITY_MUT * dt;
+    fp.pos.y += fp.velY * dt;
+
+    const floorY = getFloorY(fp.pos.x, fp.pos.z) + PLAYER_HEIGHT_MUT;
+    if (fp.pos.y <= floorY) {
+      fp.pos.y  = floorY;
+      fp.velY   = 0;
+      fp.onGround = true;
+    } else {
+      fp.onGround = false;
+    }
+  }
+
+  fpCamera.position.copy(fp.pos);
+  fpCamera.rotation.order = 'YXZ';
+  fpCamera.rotation.y = fp.yaw;
+  fpCamera.rotation.x = fp.pitch;
+  fpRenderer.render(scene, fpCamera);
+}
+
+function toggleFlyMode(on) {
+  fp.flyMode = on;
+  fp.velY    = 0; // kill gravity momentum when toggling
+  const hudBtn  = document.getElementById('fly-toggle-btn');
+  const sideBtn = document.getElementById('fly-btn');
+  const hint    = document.getElementById('hud-extra-hint');
+  if (on) {
+    hudBtn.textContent  = '🦶 Walk Mode';
+    hudBtn.style.borderColor = '#d4a060';
+    hudBtn.style.color       = '#f0c888';
+    sideBtn.classList.add('active');
+    sideBtn.textContent = '🪂 Fly Mode (ON)';
+    hint.textContent    = 'SPACE/W · up/fwd · CTRL · down · SHIFT · sprint';
+    document.getElementById('fp-prompt-title').textContent = 'FLY MODE';
+    document.getElementById('fp-prompt-text').innerHTML =
+      'Click to capture mouse &amp; begin flying<br>' +
+      'WASD — Fly in look direction &nbsp;|&nbsp; Space — Up &nbsp;|&nbsp; Ctrl — Down<br>' +
+      'Mouse — Look &nbsp;|&nbsp; Shift — Sprint &nbsp;|&nbsp; Double-tap Space — Walk';
+  } else {
+    hudBtn.textContent  = '🪂 Fly Mode';
+    hudBtn.style.borderColor = '';
+    hudBtn.style.color       = '';
+    sideBtn.classList.remove('active');
+    sideBtn.textContent = '🪂 Fly Mode';
+    hint.textContent    = 'SPACE · jump · SHIFT · sprint';
+    document.getElementById('fp-prompt-title').textContent = 'FIRST PERSON MODE';
+    document.getElementById('fp-prompt-text').innerHTML =
+      'Click to capture mouse &amp; begin exploring<br>' +
+      'WASD / Arrow Keys — Move &nbsp;|&nbsp; Space — Jump<br>' +
+      'Mouse — Look &nbsp;|&nbsp; Shift — Sprint &nbsp;|&nbsp; Double-tap Space — Fly';
+  }
+}
+
+function enterFP(startFly = false) {
+  rebuildFPBoxes();
+  fp.pos.set(0, startFly ? 8 : PLAYER_HEIGHT_MUT + 0.5, 8);
+  fp.velY = 0; fp.yaw = Math.PI; fp.pitch = 0; fp.onGround = false;
+  toggleFlyMode(startFly);
+  fpOverlay.classList.add('active');
+  fpPrompt.style.display = 'flex';
+  fp.active = true;
+  document.getElementById('fp-btn').classList.add('active');
+  document.getElementById('fp-btn').textContent = '⬛ Exit First Person';
+  fpLastTime = performance.now();
+  requestAnimationFrame(fpTick);
+}
+
+function exitFP() {
+  fp.active  = false;
+  fp.locked  = false;
+  fp.flyMode = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  fpOverlay.classList.remove('active');
+  document.getElementById('fp-btn').classList.remove('active');
+  document.getElementById('fp-btn').textContent = '⬛ Explore First Person';
+  document.getElementById('fly-btn').classList.remove('active');
+  document.getElementById('fly-btn').textContent = '🪂 Fly Mode';
+}
+
+function takeScreenshot() {
+  // Flash
+  ssFlash.classList.add('flash');
+  setTimeout(() => ssFlash.classList.remove('flash'), 150);
+  // Render one clean frame then download
+  fpRenderer.render(scene, fpCamera);
+  fpRenderer.domElement.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href    = url;
+    a.download = `blockworld_screenshot_${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+
+document.getElementById('fp-btn').addEventListener('click', () => {
+  fp.active ? exitFP() : enterFP(false);
+});
+document.getElementById('fly-btn').addEventListener('click', () => {
+  if (fp.active) { toggleFlyMode(!fp.flyMode); }
+  else { enterFP(true); }
+});
+document.getElementById('fly-toggle-btn').addEventListener('click', () => toggleFlyMode(!fp.flyMode));
+document.getElementById('fp-exit-btn').addEventListener('click', exitFP);
+document.getElementById('ss-btn').addEventListener('click', takeScreenshot);
+
+// Rebuild FP collision boxes after any new world is loaded/generated
+const _origGenerate = generateBlocks;
+generateBlocks = function() { _origGenerate(); rebuildFPBoxes(); };
+const _origLoad = loadBlockData;
+loadBlockData = function(b) { _origLoad(b); rebuildFPBoxes(); };
+
+buildGrid();
+buildBlockSizeUI();
+generateBlocks();
+setupControls();
+updateCameraPosition();
+animate();
+</script>
+</body>
+</html>
