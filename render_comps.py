@@ -95,8 +95,8 @@ def render_grid(image_path: str, target_w=960, target_h=540):
             ax.imshow(bg, aspect="auto")
 
             # Overlay composition template
-            t_norm = (template - template.min()) / (template.max() - template.min() + 1e-8)
-            ax.imshow(t_norm, cmap=OVERLAY_CMAP, alpha=0.85, aspect="auto")
+            # t_norm = (template - template.min()) / (template.max() - template.min() + 1e-8)
+            ax.imshow(template, cmap=OVERLAY_CMAP, alpha=0.85, aspect="auto")
 
             score = norm_scores[name]
             bar_color = plt.cm.RdYlGn(score)

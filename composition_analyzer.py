@@ -106,17 +106,21 @@ def _line_density_score(edges: np.ndarray, angle_range, tolerance=10) -> float:
 
 def _make_rule_of_thirds(H, W):
     mask = np.zeros((H, W), np.float32)
-    # Four intersection points, gaussian blobs
+    # Tight gaussian blobs at the four intersection points
+    sigma = min(H, W) * 0.03
     for y in [H // 3, 2 * H // 3]:
         for x in [W // 3, 2 * W // 3]:
             tmp = np.zeros((H, W), np.float32)
             tmp[y, x] = 1.0
-            mask += gaussian_filter(tmp, sigma=min(H, W) * 0.07)
-    # Also weight the third-lines themselves (lighter)
+            mask += gaussian_filter(tmp, sigma=sigma)
+    # Faint grid lines as secondary cue
+    thick = max(1, H // 12)
     for y in [H // 3, 2 * H // 3]:
-        mask[y, :] += 0.15
+        mask[y-thick, :] += 1.0
+        mask[y+thick, :] + 1.0
     for x in [W // 3, 2 * W // 3]:
-        mask[:, x] += 0.15
+        mask[:, x-thick] += 1.0
+        mask[:, x+thick] += 1.0
     return mask / (mask.max() + 1e-8)
 
 
@@ -124,57 +128,63 @@ def _make_golden_section(H, W):
     """Golden ratio grid: phi ≈ 0.618"""
     phi = 0.6180339887
     mask = np.zeros((H, W), np.float32)
-    for frac in [phi, 1 - phi]:
-        y = int(H * frac)
-        x = int(W * frac)
-        mask[y, :] += 0.3
-        mask[:, x] += 0.3
-    # Intersections
+    # Tight blobs at the four phi intersections
+    sigma = min(H, W) * 0.03
     for fy in [phi, 1 - phi]:
         for fx in [phi, 1 - phi]:
             tmp = np.zeros((H, W), np.float32)
             tmp[int(H * fy), int(W * fx)] = 1.0
-            mask += gaussian_filter(tmp, sigma=min(H, W) * 0.08)
+            mask += gaussian_filter(tmp, sigma=sigma)
+    # Faint grid lines
+    for frac in [phi, 1 - phi]:
+        mask[int(H * frac), :] += 1
+        mask[:, int(W * frac)] += 1
     return mask / (mask.max() + 1e-8)
 
 
 def _make_golden_spiral(H, W):
-    """Approximate golden spiral as a series of quarter-circle arcs."""
+    """
+    Golden spiral as connected quarter-circle arcs.
+    Repeatedly cuts squares from the rectangle; arc center is the
+    inner corner shared between the square and the remaining rect.
+    Each arc endpoint exactly meets the next arc's start point.
+    """
     mask = np.zeros((H, W), np.float32)
-    phi = 1.6180339887
-    # Starting rect top-left corner
-    x0, y0 = 0.0, 0.0
-    w, h = float(W), float(H)
-    # Draw ~7 quarter arcs
-    for i in range(7):
-        if w > h:
+    x1, y1, x2, y2 = 0.0, 0.0, float(W), float(H)
+    for i in range(10):
+        w = x2 - x1
+        h = y2 - y1
+        if w < 1 or h < 1:
+            break
+        phase = i % 4
+        if phase == 0:      # cut square from left; arc center = bottom-right of square
             sq = h
-            cx, cy = x0 + sq, y0 + sq
-            r = sq
-            start_a, end_a = math.pi, 1.5 * math.pi
-            x0 = x0 + sq
-            w -= sq
-        else:
+            cx, cy = x1 + sq, y2
+            sa, ea = math.pi, 1.5 * math.pi
+            x1 += sq
+        elif phase == 1:    # cut square from top; arc center = bottom-left of square
             sq = w
-            cx, cy = x0, y0 + sq
-            r = sq
-            start_a, end_a = 1.5 * math.pi, 2.0 * math.pi
-            y0 = y0 + sq
-            h -= sq
-        # Draw arc
-        pts = 60
-        for j in range(pts):
-            a = start_a + (end_a - start_a) * j / pts
-            px = int(cx + r * math.cos(a))
-            py = int(cy + r * math.sin(a))
+            cx, cy = x1, y1 + sq
+            sa, ea = 1.5 * math.pi, 2.0 * math.pi
+            y1 += sq
+        elif phase == 2:    # cut square from right; arc center = top-left of square
+            sq = h
+            cx, cy = x2 - sq, y1
+            sa, ea = 0.0, 0.5 * math.pi
+            x2 -= sq
+        else:               # cut square from bottom; arc center = top-right of square
+            sq = w
+            cx, cy = x2, y2 - sq
+            sa, ea = 0.5 * math.pi, math.pi
+            y2 -= sq
+        pts = max(80, int(sq * 8))
+        for j in range(pts + 1):
+            a = sa + (ea - sa) * j / pts
+            px = int(round(cx + sq * math.cos(a)))
+            py = int(round(cy + sq * math.sin(a)))
             if 0 <= px < W and 0 <= py < H:
-                mask[py, px] = 1.0
-        # Divide for next iteration
-        if w > h:
-            w /= phi
-        else:
-            h /= phi
-    mask = gaussian_filter(mask, sigma=min(H, W) * 0.04)
+                mask[py, px] += 1.0
+    mask = gaussian_filter(mask, sigma=min(H, W) * 0.016)
     return mask / (mask.max() + 1e-8)
 
 
@@ -202,19 +212,30 @@ def _make_spiral_section(H, W):
 
 
 def _make_golden_triangles(H, W):
-    """Main diagonal + two perpendiculars from corners."""
+    """
+    Main diagonal (TL→BR) plus perpendicular lines dropped from each
+    opposite corner to the diagonal — matching the reference image pattern.
+    """
     mask = np.zeros((H, W), np.float32)
-    # Main diagonal: top-left to bottom-right
-    for t in np.linspace(0, 1, 2000):
-        y, x = int(t * H), int(t * W)
-        if 0 <= y < H and 0 <= x < W:
-            mask[y, x] = 1.0
-    # Anti-diagonal: top-right to bottom-left
-    for t in np.linspace(0, 1, 2000):
-        y, x = int(t * H), int((1 - t) * W)
-        if 0 <= y < H and 0 <= x < W:
-            mask[y, x] = 0.8
-    mask = gaussian_filter(mask, sigma=min(H, W) * 0.025)
+    def draw_line(y1, x1, y2, x2, weight=1.0):
+        n = int(math.hypot(x2 - x1, y2 - y1) * 3)
+        for t in np.linspace(0, 1, max(n, 2)):
+            y = int(y1 + t * (y2 - y1))
+            x = int(x1 + t * (x2 - x1))
+            if 0 <= y < H and 0 <= x < W:
+                mask[y, x] += weight
+    # Main diagonal
+    draw_line(0, 0, H - 1, W - 1, 1.0)
+    # Foot of perpendicular from top-right corner (0, W-1) onto diagonal y = (H/W)*x
+    m = H / W
+    xf1 = (W - 1) / (1 + m ** 2)
+    yf1 = m * xf1
+    draw_line(0, W - 1, int(yf1), int(xf1), 0.9)
+    # Foot of perpendicular from bottom-left corner (H-1, 0) onto diagonal
+    xf2 = m * (H - 1) / (1 + m ** 2)
+    yf2 = m * xf2
+    draw_line(H - 1, 0, int(yf2), int(xf2), 0.9)
+    mask = gaussian_filter(mask, sigma=min(H, W) * 0.018)
     return mask / (mask.max() + 1e-8)
 
 
@@ -305,12 +326,19 @@ def _make_radial(H, W):
 
 
 def _make_l_arrangement(H, W):
-    """L-shape: strong bottom horizontal + left vertical."""
+    """
+    Centered L-shape: vertical stroke from ~20% to ~75% height,
+    horizontal stroke extending right from its base — matching the reference image.
+    """
     mask = np.zeros((H, W), np.float32)
-    thick = max(1, H // 12)
-    mask[H - thick:, :] = 1.0
-    mask[:, :thick] = 1.0
-    mask = gaussian_filter(mask, sigma=min(H, W) * 0.03)
+    lw = max(2, min(H, W) // 80)
+    cx   = int(W * 0.35)
+    top_y  = int(H * 0.18)
+    bot_y  = int(H * 0.76)
+    right_x = int(W * 0.74)
+    mask[top_y:bot_y, cx - lw:cx + lw] = 1.0
+    mask[bot_y - lw:bot_y + lw, cx:right_x] = 1.0
+    mask = gaussian_filter(mask, sigma=min(H, W) * 0.025)
     return mask / (mask.max() + 1e-8)
 
 
@@ -327,19 +355,22 @@ def _make_compound_curve(H, W):
 
 
 def _make_pyramid(H, W):
-    """Triangle with apex at top-center, base at bottom."""
+    """Inset triangle: apex at top-center, base near bottom — matching reference."""
     mask = np.zeros((H, W), np.float32)
     def draw_line(y1, x1, y2, x2):
-        length = int(math.hypot(x2 - x1, y2 - y1)) * 2
-        for t in np.linspace(0, 1, length):
+        n = int(math.hypot(x2 - x1, y2 - y1) * 3)
+        for t in np.linspace(0, 1, max(n, 2)):
             y = int(y1 + t * (y2 - y1))
             x = int(x1 + t * (x2 - x1))
             if 0 <= y < H and 0 <= x < W:
                 mask[y, x] = 1.0
-    draw_line(0, W // 2, H - 1, 0)
-    draw_line(0, W // 2, H - 1, W - 1)
-    draw_line(H - 1, 0, H - 1, W - 1)
-    mask = gaussian_filter(mask, sigma=min(H, W) * 0.03)
+    apex_x, apex_y = W // 2, int(H * 0.12)
+    base_y = int(H * 0.88)
+    base_l, base_r = int(W * 0.12), int(W * 0.88)
+    draw_line(apex_y, apex_x, base_y, base_l)
+    draw_line(apex_y, apex_x, base_y, base_r)
+    draw_line(base_y, base_l, base_y, base_r)
+    mask = gaussian_filter(mask, sigma=min(H, W) * 0.022)
     return mask / (mask.max() + 1e-8)
 
 

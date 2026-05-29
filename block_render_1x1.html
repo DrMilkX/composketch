@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block World</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0f14;
+    color: #e8e4d9;
+    font-family: 'Courier New', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #header {
+    padding: 12px 20px;
+    border-bottom: 1px solid #2a2d38;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #10121a;
+    flex-shrink: 0;
+  }
+  #header h1 {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #7eb8f7;
+    font-weight: normal;
+  }
+  #header .subtitle {
+    font-size: 11px;
+    color: #4a5068;
+    letter-spacing: 0.05em;
+  }
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #canvas-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  canvas { display: block; }
+  #controls {
+    width: 220px;
+    background: #10121a;
+    border-left: 1px solid #2a2d38;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .ctrl-group label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #4a5068;
+    margin-bottom: 10px;
+  }
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .ctrl-row span.name {
+    font-size: 11px;
+    color: #8a90a8;
+    width: 56px;
+    flex-shrink: 0;
+  }
+  .ctrl-row input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: #2a2d38;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .ctrl-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #7eb8f7;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ctrl-row input[type=range]:hover::-webkit-slider-thumb {
+    background: #aed4ff;
+  }
+  .ctrl-row .val {
+    font-size: 11px;
+    color: #7eb8f7;
+    width: 30px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid #1e2130;
+  }
+  #regen-btn {
+    background: transparent;
+    border: 1px solid #3a4060;
+    color: #7eb8f7;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    width: 100%;
+  }
+  #regen-btn:hover {
+    background: #1e2438;
+    border-color: #7eb8f7;
+    color: #aed4ff;
+  }
+  #regen-btn:active {
+    background: #28304a;
+    transform: scale(0.98);
+  }
+  #stats {
+    font-size: 10px;
+    color: #3a4060;
+    letter-spacing: 0.08em;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid #1e2130;
+    line-height: 1.7;
+  }
+  .palette-preview {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>Block World</h1>
+  <span class="subtitle">16 × 16 grid — gravity simulation</span>
+</div>
+<div id="main">
+  <div id="canvas-container"></div>
+  <div id="controls">
+
+    <div class="ctrl-group">
+      <label>Camera</label>
+      <div class="ctrl-row">
+        <span class="name">Rotate</span>
+        <input type="range" id="rotY" min="0" max="360" value="30" step="1">
+        <span class="val" id="rotY-val">30°</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="name">Tilt</span>
+        <input type="range" id="rotX" min="10" max="80" value="45" step="1">
+        <span class="val" id="rotX-val">45°</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="name">Zoom</span>
+        <input type="range" id="zoom" min="8" max="32" value="18" step="0.5">
+        <span class="val" id="zoom-val">18</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="ctrl-group">
+      <label>Lighting</label>
+      <div class="ctrl-row">
+        <span class="name">Sun</span>
+        <input type="range" id="sunInt" min="0" max="300" value="130" step="1">
+        <span class="val" id="sunInt-val">1.3</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="name">Ambient</span>
+        <input type="range" id="ambInt" min="0" max="200" value="60" step="1">
+        <span class="val" id="ambInt-val">0.6</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="name">Sun Angle</span>
+        <input type="range" id="sunAngle" min="0" max="360" value="45" step="1">
+        <span class="val" id="sunAngle-val">45°</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="ctrl-group">
+      <label>Generation</label>
+      <div class="ctrl-row">
+        <span class="name">Density</span>
+        <input type="range" id="density" min="10" max="90" value="40" step="1">
+        <span class="val" id="density-val">40%</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="name">Max Stack</span>
+        <input type="range" id="maxStack" min="1" max="10" value="5" step="1">
+        <span class="val" id="maxStack-val">5</span>
+      </div>
+    </div>
+
+    <button id="regen-btn">↺ Regenerate</button>
+
+    <div id="stats">
+      <div>Blocks: <span id="stat-blocks">—</span></div>
+      <div>Columns: <span id="stat-cols">—</span></div>
+      <div class="palette-preview" id="palette-swatches"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const container = document.getElementById('canvas-container');
+let W = container.clientWidth, H = container.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0d0f14);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+function updateCamera() {
+  const z = parseFloat(document.getElementById('zoom').value);
+  const asp = W / H;
+  camera.left = -z * asp / 2;
+  camera.right = z * asp / 2;
+  camera.top = z / 2;
+  camera.bottom = -z / 2;
+  camera.updateProjectionMatrix();
+}
+camera.position.set(30, 30, 30);
+camera.lookAt(0, 0, 0);
+updateCamera();
+
+const ambLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambLight);
+
+const sunLight = new THREE.DirectionalLight(0xfff5e0, 1.3);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 200;
+sunLight.shadow.camera.left = -20;
+sunLight.shadow.camera.right = 20;
+sunLight.shadow.camera.top = 20;
+sunLight.shadow.camera.bottom = -20;
+scene.add(sunLight);
+
+function setSunPosition(angleDeg) {
+  const r = 40;
+  const a = (angleDeg * Math.PI) / 180;
+  sunLight.position.set(Math.cos(a) * r, 30, Math.sin(a) * r);
+}
+setSunPosition(45);
+
+const GRID = 16;
+const BLOCK_SIZE = 1;
+const BLOCK_GAP = 0.05;
+const BS = BLOCK_SIZE - BLOCK_GAP;
+
+const PALETTES = [
+  [0xe8725a, 0xd4573f, 0xf0896e, 0xc44830, 0xff9e88],
+  [0x5a9ee8, 0x3f7ed4, 0x6eb4f0, 0x3068c4, 0x88c4ff],
+  [0x72d45a, 0x57bf3f, 0x86e86e, 0x42a830, 0x9ef888],
+  [0xe8c45a, 0xd4a83f, 0xf0d86e, 0xc49230, 0xffe88a],
+  [0xa05ae8, 0x8a3fd4, 0xb86ef0, 0x7030c4, 0xc888ff],
+  [0xe8a05a, 0xd4853f, 0xf0b86e, 0xc47030, 0xffca88],
+];
+
+let currentPalette = PALETTES[0];
+let blockGroup = null;
+let gridPlane = null;
+
+function buildGrid() {
+  if (gridPlane) {
+    scene.remove(gridPlane);
+    gridPlane.geometry.dispose();
+    gridPlane.material.dispose();
+  }
+  const geo = new THREE.PlaneGeometry(GRID + 0.5, GRID + 0.5);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x1a1e2a,
+    roughness: 0.9,
+    metalness: 0.1,
+  });
+  gridPlane = new THREE.Mesh(geo, mat);
+  gridPlane.rotation.x = -Math.PI / 2;
+  gridPlane.position.y = -0.5;
+  gridPlane.receiveShadow = true;
+  scene.add(gridPlane);
+
+  const lineGeo = new THREE.BufferGeometry();
+  const pts = [];
+  const half = GRID / 2;
+  for (let i = 0; i <= GRID; i++) {
+    pts.push(-half + i, -0.49, -half, -half + i, -0.49, half);
+    pts.push(-half, -0.49, -half + i, half, -0.49, -half + i);
+  }
+  lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x2a3050, transparent: true, opacity: 0.5 });
+  const lines = new THREE.LineSegments(lineGeo, lineMat);
+  scene.add(lines);
+}
+
+function generateBlocks() {
+  if (blockGroup) {
+    blockGroup.traverse(obj => {
+      if (obj.isMesh) { obj.geometry.dispose(); obj.material.dispose(); }
+    });
+    scene.remove(blockGroup);
+  }
+  blockGroup = new THREE.Group();
+
+  const density = parseFloat(document.getElementById('density').value) / 100;
+  const maxStack = parseInt(document.getElementById('maxStack').value);
+  const half = GRID / 2 - 0.5;
+
+  const paletteIdx = Math.floor(Math.random() * PALETTES.length);
+  currentPalette = PALETTES[paletteIdx];
+  updateSwatches();
+
+  const geo = new THREE.BoxGeometry(BS, BS, BS);
+  let totalBlocks = 0;
+  let filledCols = 0;
+
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gz = 0; gz < GRID; gz++) {
+      if (Math.random() > density) continue;
+      const height = 1 + Math.floor(Math.random() * maxStack);
+      filledCols++;
+      for (let gy = 0; gy < height; gy++) {
+        const colorIdx = Math.floor(Math.random() * currentPalette.length);
+        const baseColor = currentPalette[colorIdx];
+        const shade = 0.85 + Math.random() * 0.3;
+        const r = ((baseColor >> 16) & 0xff) / 255 * shade;
+        const g = ((baseColor >> 8) & 0xff) / 255 * shade;
+        const b = (baseColor & 0xff) / 255 * shade;
+        const mat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(r, g, b),
+          roughness: 0.6 + Math.random() * 0.3,
+          metalness: 0.05 + Math.random() * 0.1,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(
+          -half + gx,
+          gy * BLOCK_SIZE,
+          -half + gz
+        );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        blockGroup.add(mesh);
+        totalBlocks++;
+      }
+    }
+  }
+
+  scene.add(blockGroup);
+  document.getElementById('stat-blocks').textContent = totalBlocks;
+  document.getElementById('stat-cols').textContent = filledCols;
+}
+
+function updateSwatches() {
+  const container = document.getElementById('palette-swatches');
+  container.innerHTML = '';
+  currentPalette.forEach(c => {
+    const s = document.createElement('div');
+    s.className = 'swatch';
+    s.style.background = '#' + c.toString(16).padStart(6, '0');
+    container.appendChild(s);
+  });
+}
+
+function updateCameraPosition() {
+  const ry = parseFloat(document.getElementById('rotY').value) * Math.PI / 180;
+  const rx = parseFloat(document.getElementById('rotX').value) * Math.PI / 180;
+  const z = parseFloat(document.getElementById('zoom').value);
+  const dist = z * 2.2;
+  camera.position.set(
+    Math.sin(ry) * Math.cos(rx) * dist,
+    Math.sin(rx) * dist,
+    Math.cos(ry) * Math.cos(rx) * dist
+  );
+  camera.lookAt(0, 2, 0);
+  updateCamera();
+}
+
+function setupControls() {
+  const bind = (id, suffix, scale, cb) => {
+    const el = document.getElementById(id);
+    const val = document.getElementById(id + '-val');
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      val.textContent = scale ? (v / scale).toFixed(1) + (suffix || '') : v + (suffix || '');
+      cb(v);
+    });
+  };
+
+  bind('rotY', '°', null, () => updateCameraPosition());
+  bind('rotX', '°', null, () => updateCameraPosition());
+  bind('zoom', '', null, () => updateCameraPosition());
+  bind('sunInt', '', 100, v => { sunLight.intensity = v / 100; });
+  bind('ambInt', '', 100, v => { ambLight.intensity = v / 100; });
+  bind('sunAngle', '°', null, v => setSunPosition(v));
+  bind('density', '%', null, () => {});
+  bind('maxStack', '', null, () => {});
+
+  document.getElementById('regen-btn').addEventListener('click', generateBlocks);
+}
+
+window.addEventListener('resize', () => {
+  W = container.clientWidth;
+  H = container.clientHeight;
+  renderer.setSize(W, H);
+  updateCamera();
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+
+buildGrid();
+generateBlocks();
+setupControls();
+updateCameraPosition();
+animate();
+</script>
+</body>
+</html>
