@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peak Shot Explorer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0f14;
+    color: #e8e4d9;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  header {
+    width: 100%;
+    padding: 18px 40px;
+    border-bottom: 1px solid #2a2d38;
+    background: #10121a;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 14px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #b07ef7;
+    font-weight: normal;
+  }
+  header p {
+    margin-top: 4px;
+    font-size: 10px;
+    color: #4a5068;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Controls ───────────────────────────────────────────────────────── */
+  .controls {
+    margin: 28px 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  #explore-btn {
+    background: transparent;
+    border: 1px solid #3a5040;
+    color: #6ed4a0;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 12px 36px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+  }
+  #explore-btn:hover:not(:disabled) {
+    background: #182a20;
+    border-color: #6ed4a0;
+    color: #a0f0c8;
+  }
+  #explore-btn:active:not(:disabled) { transform: scale(0.97); }
+  #explore-btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── Progress ───────────────────────────────────────────────────────── */
+  #progress-area {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    width: min(480px, 90vw);
+  }
+  .prog-track {
+    width: 100%;
+    height: 2px;
+    background: #2a2d38;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #prog-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #6ed4a0, #b07ef7);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  #status-text {
+    font-size: 10px;
+    color: #4a6058;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  /* ── Gallery ────────────────────────────────────────────────────────── */
+  #gallery {
+    margin: 22px auto 0;
+    width: min(1160px, 96vw);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .img-card {
+    aspect-ratio: 16 / 9;
+    border-radius: 6px;
+    border: 1px solid #1e2130;
+    background: #10121a;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .img-card:hover {
+    border-color: #b07ef7;
+    box-shadow: 0 0 18px rgba(176, 126, 247, 0.12);
+  }
+
+  /* Placeholder pulse dots */
+  .card-ph {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #10121a;
+    transition: opacity 0.3s;
+  }
+  .img-card.filled .card-ph { opacity: 0; pointer-events: none; }
+  .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #2a2d38;
+    animation: blink 1.8s ease-in-out infinite;
+  }
+
+  /* Actual image */
+  .card-img {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .card-img.show { opacity: 1; }
+
+  /* Shot label (top-left) */
+  .card-shot {
+    position: absolute;
+    top: 7px; left: 9px;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    display: none;
+  }
+  .img-card.filled .card-shot { display: block; }
+
+  /* Confidence badge (bottom-right) */
+  .card-badge {
+    position: absolute;
+    bottom: 7px; right: 9px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.9);
+    background: rgba(0,0,0,0.55);
+    padding: 2px 7px;
+    border-radius: 3px;
+    backdrop-filter: blur(4px);
+    display: none;
+  }
+  .img-card.filled .card-badge { display: block; }
+
+  /* Step badge (bottom-left) */
+  .card-step {
+    position: absolute;
+    bottom: 7px; left: 9px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.4);
+    display: none;
+  }
+  .img-card.filled .card-step { display: block; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 0.25; transform: scale(1); }
+    50%       { opacity: 0.7;  transform: scale(1.5); }
+  }
+
+  /* ── Footer ─────────────────────────────────────────────────────────── */
+  #footer-area {
+    margin: 20px 0 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+  }
+
+  #regen-btn {
+    display: none;
+    background: transparent;
+    border: 1px solid #3a4060;
+    color: #b07ef7;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 10px 30px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  #regen-btn:hover { background: #1e1838; border-color: #b07ef7; color: #c8a0ff; }
+
+  #summary-text {
+    font-size: 10px;
+    color: #3a4060;
+    letter-spacing: 0.08em;
+    display: none;
+    text-align: center;
+  }
+
+  /* ── Toast ───────────────────────────────────────────────────────────── */
+  #toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    background: #1a2030;
+    border: 1px solid #3a4060;
+    color: #8a90a8;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 8px 20px;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Peak Shot Explorer</h1>
+  <p>Automated agent explores a procedural 3D scene · peak_model selects the most aesthetically pleasing frames</p>
+</header>
+
+<div class="controls">
+  <button id="explore-btn" onclick="startExplore()">▶ &nbsp;Explore Scene</button>
+  <div id="progress-area">
+    <div class="prog-track"><div id="prog-fill"></div></div>
+    <div id="status-text">Initializing…</div>
+  </div>
+</div>
+
+<div id="gallery"></div>
+
+<div id="footer-area">
+  <button id="regen-btn" onclick="startExplore()">↺ &nbsp;Explore Again</button>
+  <div id="summary-text"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Build gallery cards ───────────────────────────────────────────────────────
+const gallery = document.getElementById('gallery');
+const DELAYS  = [0, 0.15, 0.3, 0.6, 0.75, 0.9]; // stagger blink animation
+
+for (let i = 0; i < 6; i++) {
+  const card = document.createElement('div');
+  card.className = 'img-card';
+  card.id = `card-${i}`;
+  card.innerHTML = `
+    <div class="card-ph">
+      <div class="dot" style="animation-delay:${DELAYS[i]}s"></div>
+    </div>
+    <img class="card-img" id="img-${i}" alt="">
+    <div class="card-shot" id="shot-${i}">SHOT ${i + 1}</div>
+    <div class="card-badge" id="badge-${i}"></div>
+    <div class="card-step" id="step-${i}"></div>
+  `;
+  gallery.appendChild(card);
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let evtSource = null;
+
+// ── Main explore function ─────────────────────────────────────────────────────
+function startExplore() {
+  // Reset all cards
+  for (let i = 0; i < 6; i++) {
+    const card = document.getElementById(`card-${i}`);
+    card.classList.remove('filled');
+    const img = document.getElementById(`img-${i}`);
+    img.src = '';
+    img.classList.remove('show');
+    document.getElementById(`badge-${i}`).textContent = '';
+    document.getElementById(`step-${i}`).textContent  = '';
+  }
+
+  document.getElementById('regen-btn').style.display   = 'none';
+  document.getElementById('summary-text').style.display = 'none';
+
+  const btn     = document.getElementById('explore-btn');
+  const progArea = document.getElementById('progress-area');
+  btn.disabled  = true;
+  progArea.style.display = 'flex';
+  setProgress(0, 'Launching browser…');
+
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource('/api/explore');
+
+  evtSource.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+
+    if (d.error) {
+      toast('Error: ' + d.error);
+      progArea.style.display = 'none';
+      btn.disabled = false;
+      evtSource.close();
+      return;
+    }
+
+    switch (d.status) {
+
+      case 'loading':
+        setProgress(2, d.msg || 'Loading scene…');
+        break;
+
+      case 'exploring': {
+        const pct = Math.round((d.step / d.total) * 100);
+        setProgress(pct,
+          `Exploring · step ${d.step} / ${d.total} · found ${d.good} / 6`);
+        break;
+      }
+
+      case 'image': {
+        const idx  = d.index;
+        const imgEl = document.getElementById(`img-${idx}`);
+        imgEl.src  = d.b64;
+        imgEl.onload = () => imgEl.classList.add('show');
+
+        const pct = Math.round(d.prob_good * 100);
+        document.getElementById(`badge-${idx}`).textContent = `${pct}% good`;
+        document.getElementById(`step-${idx}`).textContent  = `step ${d.step}`;
+        document.getElementById(`card-${idx}`).classList.add('filled');
+
+        const overallPct = Math.round(((idx + 1) / 6) * 95);
+        setProgress(overallPct,
+          `Found ${idx + 1} / 6 · step ${d.step} · confidence ${pct}%`);
+        break;
+      }
+
+      case 'done':
+        setProgress(100,
+          `Done — ${d.good} / 6 good frames found in ${d.steps} steps`);
+
+        setTimeout(() => {
+          progArea.style.display = 'none';
+          btn.disabled = false;
+          document.getElementById('regen-btn').style.display = 'block';
+          const sumEl = document.getElementById('summary-text');
+          sumEl.style.display = 'block';
+          sumEl.textContent =
+            `${d.good} of 6 frames collected · ${d.steps} poses sampled`;
+        }, 1400);
+
+        evtSource.close();
+        break;
+    }
+  };
+
+  evtSource.onerror = () => {
+    toast('Connection closed unexpectedly');
+    document.getElementById('progress-area').style.display = 'none';
+    btn.disabled = false;
+    evtSource.close();
+  };
+}
+
+function setProgress(pct, msg) {
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('status-text').textContent = msg;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>

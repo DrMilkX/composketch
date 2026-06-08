@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; }
+  body { background: #0d0f14; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.min.js"></script>
+<script>
+// ── Scene config: small area · med-large shapes · med-high count ──────────────
+const CFG = {
+  shapeCount: 80,
+  areaRadius: 10,
+  scaleMin:   0.8,
+  scaleMax:   3.0,
+};
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0d0f14);
+document.body.appendChild(renderer.domElement);
+
+// ── Scene ─────────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.fog   = new THREE.Fog(0x0d0f14, 28, 85);
+
+// ── Camera ────────────────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(
+  75, window.innerWidth / window.innerHeight, 0.05, 200
+);
+camera.rotation.order = 'YXZ';
+
+// ── Lights ────────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 1.4);
+sun.castShadow             = true;
+sun.shadow.mapSize.width   = 1024;
+sun.shadow.mapSize.height  = 1024;
+sun.shadow.camera.near     = 0.5;
+sun.shadow.camera.far      = 200;
+sun.shadow.camera.left     = sun.shadow.camera.bottom = -40;
+sun.shadow.camera.right    = sun.shadow.camera.top    =  40;
+sun.position.set(35, 48, 28);
+scene.add(sun);
+
+// Secondary fill light from opposite side
+const fill = new THREE.DirectionalLight(0xc8d0ff, 0.35);
+fill.position.set(-20, 15, -20);
+scene.add(fill);
+
+// ── Ground ────────────────────────────────────────────────────────────────────
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshStandardMaterial({ color: 0x161820, roughness: 0.95, metalness: 0.0 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Subtle grid
+(function buildGrid() {
+  const pts = [], half = 50, step = 2;
+  for (let i = -half; i <= half; i += step) {
+    pts.push(-half, 0.002, i,  half, 0.002, i);
+    pts.push(i, 0.002, -half,  i, 0.002, half);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.LineSegments(geo,
+    new THREE.LineBasicMaterial({ color: 0x1e2030, transparent: true, opacity: 0.5 })));
+})();
+
+// ── Palettes ──────────────────────────────────────────────────────────────────
+const PALETTES = [
+  [0xe8725a, 0xd4573f, 0xf0896e, 0xc44830, 0xff9e88],
+  [0x5a9ee8, 0x3f7ed4, 0x6eb4f0, 0x3068c4, 0x88c4ff],
+  [0x72d45a, 0x57bf3f, 0x86e86e, 0x42a830, 0x9ef888],
+  [0xe8c45a, 0xd4a83f, 0xf0d86e, 0xc49230, 0xffe88a],
+  [0xa05ae8, 0x8a3fd4, 0xb86ef0, 0x7030c4, 0xc888ff],
+  [0xe8a05a, 0xd4853f, 0xf0b86e, 0xc47030, 0xffca88],
+  [0x5ae8d4, 0x3fd4bf, 0x6ef0e0, 0x30c4a8, 0x88fff0],
+];
+let palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+
+function pickedColor() {
+  const base  = palette[Math.floor(Math.random() * palette.length)];
+  const shade = 0.78 + Math.random() * 0.38;
+  return new THREE.Color(
+    ((base >> 16) & 0xff) / 255 * shade,
+    ((base >>  8) & 0xff) / 255 * shade,
+    ( base        & 0xff) / 255 * shade
+  );
+}
+
+// ── Lathe profile generator ────────────────────────────────────────────────────
+function lathePoints(scale) {
+  const style  = Math.floor(Math.random() * 4);
+  const height = scale * (0.5 + Math.random() * 1.2);
+  const pts    = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    let r;
+    switch (style) {
+      case 0:  r = scale*0.25*(0.25 + Math.sin(t*Math.PI)*0.75 + (1-t)*0.2); break; // vase
+      case 1:  r = scale*0.22*(0.15 + t*0.85);                                break; // cup
+      case 2:  r = scale*0.28*(0.40 + Math.sin(t*Math.PI)*0.6);               break; // barrel
+      default: r = scale*0.18*(0.70 + Math.sin(t*Math.PI*3)*0.15 + Math.sin(t*Math.PI)*0.3); break; // column
+    }
+    pts.push(new THREE.Vector2(Math.max(0.01, r), t * height));
+  }
+  return pts;
+}
+
+// ── Shape geometry factory ─────────────────────────────────────────────────────
+function makeShape(type, scale) {
+  const s = scale;
+  let geo, needsDouble = false;
+
+  switch (type) {
+    case 'Box':
+      geo = new THREE.BoxGeometry(
+        s*(0.5 + Math.random()*1.5),
+        s*(0.4 + Math.random()*2.0),
+        s*(0.5 + Math.random()*1.5));
+      break;
+
+    case 'Capsule':
+      geo = new THREE.CapsuleGeometry(
+        s*(0.18 + Math.random()*0.15),
+        s*(0.30 + Math.random()*0.90), 4, 10);
+      break;
+
+    case 'Cone':
+      geo = new THREE.ConeGeometry(
+        s*(0.22 + Math.random()*0.28),
+        s*(0.60 + Math.random()*1.40),
+        4 + Math.floor(Math.random()*8));
+      break;
+
+    case 'Cylinder':
+      geo = new THREE.CylinderGeometry(
+        s*(0.14 + Math.random()*0.26),
+        s*(0.18 + Math.random()*0.28),
+        s*(0.35 + Math.random()*1.50),
+        6 + Math.floor(Math.random()*10));
+      break;
+
+    case 'Dodecahedron':
+      geo = new THREE.DodecahedronGeometry(s*(0.32 + Math.random()*0.28), 0);
+      break;
+
+    case 'Icosahedron':
+      geo = new THREE.IcosahedronGeometry(
+        s*(0.32 + Math.random()*0.28),
+        Math.random() < 0.4 ? 1 : 0);
+      break;
+
+    case 'Lathe':
+      geo = new THREE.LatheGeometry(lathePoints(s), 10 + Math.floor(Math.random()*10));
+      break;
+
+    case 'Octahedron':
+      geo = new THREE.OctahedronGeometry(
+        s*(0.32 + Math.random()*0.28),
+        Math.random() < 0.3 ? 1 : 0);
+      break;
+
+    case 'Plane':
+      geo = new THREE.PlaneGeometry(
+        s*(0.8 + Math.random()*1.8),
+        s*(0.5 + Math.random()*1.4));
+      needsDouble = true;
+      break;
+
+    case 'Ring': {
+      const outer = s*(0.28 + Math.random()*0.22);
+      geo = new THREE.RingGeometry(
+        outer*(0.25 + Math.random()*0.45), outer,
+        16 + Math.floor(Math.random()*12), 3);
+      needsDouble = true;
+      break;
+    }
+
+    case 'Sphere':
+      geo = new THREE.SphereGeometry(
+        s*(0.28 + Math.random()*0.32),
+        10 + Math.floor(Math.random()*6),
+        8  + Math.floor(Math.random()*4));
+      break;
+
+    case 'Tetrahedron':
+      geo = new THREE.TetrahedronGeometry(
+        s*(0.38 + Math.random()*0.30),
+        Math.random() < 0.2 ? 1 : 0);
+      break;
+
+    case 'Torus':
+      geo = new THREE.TorusGeometry(
+        s*(0.20 + Math.random()*0.20),
+        s*(0.05 + Math.random()*0.08),
+        8, 24 + Math.floor(Math.random()*12));
+      break;
+
+    case 'Tube': {
+      const tr = s*(0.05 + Math.random()*0.06);
+      const v  = Math.floor(Math.random()*3);
+      let path;
+      if (v === 0) {
+        // Arch
+        const aw = s*(0.4+Math.random()*0.7), ah = s*(0.5+Math.random()*1.2);
+        path = new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(-aw, tr, 0), new THREE.Vector3(0, ah, 0), new THREE.Vector3(aw, tr, 0));
+      } else if (v === 1) {
+        // S-curve
+        const w = s*(0.3+Math.random()*0.3), h = s*(0.8+Math.random()*1.0);
+        path = new THREE.CubicBezierCurve3(
+          new THREE.Vector3(0, tr, 0), new THREE.Vector3(w, h*0.35, 0),
+          new THREE.Vector3(-w, h*0.65, 0), new THREE.Vector3(0, h, 0));
+      } else {
+        // Side arch
+        const aw = s*(0.3+Math.random()*0.5), ah = s*(0.4+Math.random()*0.8);
+        path = new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(0, tr, -aw), new THREE.Vector3(0, ah, 0), new THREE.Vector3(0, tr, aw));
+      }
+      geo = new THREE.TubeGeometry(path, 24, tr, 8, false);
+      break;
+    }
+
+    default:
+      geo = new THREE.SphereGeometry(s*0.3, 8, 6);
+  }
+
+  // Universal: compute exact bottom offset from bounding box
+  geo.computeBoundingBox();
+  return { geo, bottomOffset: -geo.boundingBox.min.y, needsDouble };
+}
+
+// ── Generate shapes ────────────────────────────────────────────────────────────
+const SHAPE_IDS = [
+  'Box','Capsule','Cone','Cylinder','Dodecahedron','Icosahedron',
+  'Lathe','Octahedron','Plane','Ring','Sphere','Tetrahedron','Torus','Tube',
+];
+
+let shapeGroup = new THREE.Group();
+scene.add(shapeGroup);
+
+function generateShapes() {
+  shapeGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+  shapeGroup.clear();
+
+  palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+
+  const { shapeCount, areaRadius, scaleMin, scaleMax } = CFG;
+
+  for (let i = 0; i < shapeCount; i++) {
+    const type  = SHAPE_IDS[Math.floor(Math.random() * SHAPE_IDS.length)];
+    const scale = scaleMin + Math.random() * (scaleMax - scaleMin);
+    const { geo, bottomOffset, needsDouble } = makeShape(type, scale);
+
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color:     pickedColor(),
+      roughness: 0.25 + Math.random() * 0.65,
+      metalness: 0.00 + Math.random() * 0.45,
+      side: needsDouble ? THREE.DoubleSide : THREE.FrontSide,
+    }));
+
+    const ang  = Math.random() * Math.PI * 2;
+    const dist = Math.sqrt(Math.random()) * areaRadius;
+    mesh.position.set(Math.cos(ang) * dist, bottomOffset, Math.sin(ang) * dist);
+    mesh.rotation.y    = Math.random() * Math.PI * 2;
+    mesh.castShadow    = true;
+    mesh.receiveShadow = true;
+    shapeGroup.add(mesh);
+  }
+}
+
+// ── Agent API (called from Python via execute_script) ─────────────────────────
+const AGENT = { x: 0, y: 1.7, z: 12, yaw: Math.PI, pitch: 0 };
+
+function syncCamera() {
+  camera.position.set(AGENT.x, AGENT.y, AGENT.z);
+  camera.rotation.y = AGENT.yaw;
+  camera.rotation.x = AGENT.pitch;
+}
+
+/**
+ * Teleport the agent to an absolute world position and orientation.
+ * @param {number} x      World-space X
+ * @param {number} z      World-space Z
+ * @param {number} yaw    Horizontal look angle (radians)
+ * @param {number} pitch  Vertical look angle  (radians, negative = look down)
+ */
+window.agentTeleport = function(x, z, yaw, pitch) {
+  AGENT.x     = x;
+  AGENT.z     = z;
+  AGENT.yaw   = yaw;
+  AGENT.pitch = pitch || 0;
+  syncCamera();
+  renderer.render(scene, camera);
+};
+
+/**
+ * Render the current camera view and return it as a base64 JPEG.
+ * @returns {string} data URI  "data:image/jpeg;base64,…"
+ */
+window.agentSnapshot = function() {
+  syncCamera();
+  renderer.render(scene, camera);
+  return renderer.domElement.toDataURL('image/jpeg', 0.88);
+};
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+generateShapes();
+syncCamera();
+renderer.render(scene, camera);
+
+// Signal Python that the scene is ready
+window.sceneReady = true;
+
+// Keep the render loop alive so re-renders are responsive
+(function loop() {
+  requestAnimationFrame(loop);
+  renderer.render(scene, camera);
+}());
+</script>
+</body>
+</html>

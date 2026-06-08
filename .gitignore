@@ -2,3 +2,4 @@
 .venv
 chromedriver
 peakmodel_dataset/
+*.pkl
