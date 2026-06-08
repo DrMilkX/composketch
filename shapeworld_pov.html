@@ -679,13 +679,14 @@ setSunPosition(55);
 
 // ── Palettes ──────────────────────────────────────────────────────────────
 const PALETTES = [
-  [0xe8725a, 0xd4573f, 0xf0896e, 0xc44830, 0xff9e88],
-  [0x5a9ee8, 0x3f7ed4, 0x6eb4f0, 0x3068c4, 0x88c4ff],
-  [0x72d45a, 0x57bf3f, 0x86e86e, 0x42a830, 0x9ef888],
-  [0xe8c45a, 0xd4a83f, 0xf0d86e, 0xc49230, 0xffe88a],
-  [0xa05ae8, 0x8a3fd4, 0xb86ef0, 0x7030c4, 0xc888ff],
-  [0xe8a05a, 0xd4853f, 0xf0b86e, 0xc47030, 0xffca88],
-  [0x5ae8d4, 0x3fd4bf, 0x6ef0e0, 0x30c4a8, 0x88fff0],
+  [0x121212, 0x343434, 0x898989, 0x565656, 0x383838]
+  // [0xe8725a, 0xd4573f, 0xf0896e, 0xc44830, 0xff9e88],
+  // [0x5a9ee8, 0x3f7ed4, 0x6eb4f0, 0x3068c4, 0x88c4ff],
+  // [0x72d45a, 0x57bf3f, 0x86e86e, 0x42a830, 0x9ef888],
+  // [0xe8c45a, 0xd4a83f, 0xf0d86e, 0xc49230, 0xffe88a],
+  // [0xa05ae8, 0x8a3fd4, 0xb86ef0, 0x7030c4, 0xc888ff],
+  // [0xe8a05a, 0xd4853f, 0xf0b86e, 0xc47030, 0xffca88],
+  // [0x5ae8d4, 0x3fd4bf, 0x6ef0e0, 0x30c4a8, 0x88fff0],
 ];
 let currentPalette = PALETTES[0];
 
@@ -715,7 +716,8 @@ let groundMesh = null;
 function buildGround() {
   if (groundMesh) { scene.remove(groundMesh); groundMesh.geometry.dispose(); groundMesh.material.dispose(); }
   const geo = new THREE.PlaneGeometry(200, 200, 1, 1);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x161820, roughness: 0.95, metalness: 0.0 });
+  const GROUND_COLOR = 0x787878
+  const mat = new THREE.MeshStandardMaterial({ color: GROUND_COLOR, roughness: 0.95, metalness: 0.0 });
   groundMesh = new THREE.Mesh(geo, mat);
   groundMesh.rotation.x = -Math.PI / 2;
   groundMesh.position.y = 0;
@@ -1052,7 +1054,7 @@ const fpCamera = new THREE.PerspectiveCamera(75, 1, 0.05, 500);
 const fpRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 fpRenderer.shadowMap.enabled = true;
 fpRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
-fpRenderer.setClearColor(0x0d0f14);
+fpRenderer.setClearColor(0xefefef);
 fpWrap.insertBefore(fpRenderer.domElement, fpWrap.firstChild);
 fpRenderer.domElement.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
 
